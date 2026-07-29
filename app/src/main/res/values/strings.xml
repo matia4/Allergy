@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Allergy</string>
+    <string name="scan_history">Scan history</string>
+    <string name="my_allergies">My allergies</string>
+    <string name="scan_barcode">Scan barcode</string>
+    <string name="scanner">Scanner</string>
+    <string name="allergy_choice">Choose your allergies</string>
+</resources>
