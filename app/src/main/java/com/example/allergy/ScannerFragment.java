@@ -21,6 +21,8 @@ import androidx.camera.view.PreviewView;
 
 import com.google.common.util.concurrent.ListenableFuture;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -81,35 +83,65 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
     @Override
     public void onBarcodeScanned(String rawValue) {
         if (!isScanning) return;
-        isScanning = false; // Blokujemy skaner na czas pobierania danych
+        isScanning = false;
 
         requireActivity().runOnUiThread(() -> {
-            // 1. Wywołujemy API przez Retrofit
-            Client.getApiService().getProductByBarcode(rawValue).enqueue(new retrofit2.Callback<>() {
+            Client.getApiService().getProductByBarcode(rawValue).enqueue(new retrofit2.Callback<Response>() {
                 @Override
-                public void onResponse(@NonNull retrofit2.Call<Response> call, @NonNull retrofit2.Response<Response> response) {
+                public void onResponse(retrofit2.Call<Response> call, retrofit2.Response<Response> response) {
                     if (response.isSuccessful() && response.body() != null && response.body().getStatus() == 1) {
                         Request product = response.body().getProduct();
 
-                        // Na potrzeby testu: łączymy listę alergenów w jeden ciąg tekstowy
-                        String allergensStr = "Brak wykrytych alergenów w bazie";
-                        if (product.getAllergensTags() != null && !product.getAllergensTags().isEmpty()) {
-                            allergensStr = product.getAllergensTags().toString();
+                        // 1. Pobierz aktywne alergie z bazy Room
+                        AppDatabase db = AppDatabase.getInstance(requireContext());
+                        List<Allergy> userActiveAllergies = db.allergyDAO().getActiveAllergies();
+                        List<String> productTags = product.getAllergensTags();
+
+                        // 2. Sprawdź, czy produkt zawiera którykolwiek z alergenów użytkownika
+                        List<String> detectedAllergensNames = new ArrayList<>();
+                        if (productTags != null) {
+                            for (Allergy allergy : userActiveAllergies) {
+                                if (productTags.contains(allergy.getOffTag())) {
+                                    detectedAllergensNames.add(allergy.getDisplayName());
+                                }
+                            }
                         }
 
-                        // 2. Wyświetlamy okno z informacją o produkcie
-                        showProductDialog(product.getProductName(), allergensStr, product.getIngredientsText());
+                        // 3. Pokaż spersonalizowany wynik
+                        showProductAnalysisDialog(product.getProductName(), detectedAllergensNames, product.getIngredientsText());
                     } else {
                         showErrorDialog("Produkt nie istnieje w bazie Open Food Facts.");
                     }
                 }
 
                 @Override
-                public void onFailure(@NonNull retrofit2.Call<Response> call, @NonNull Throwable t) {
+                public void onFailure(retrofit2.Call<Response> call, Throwable t) {
                     showErrorDialog("Błąd sieci: " + t.getLocalizedMessage());
                 }
             });
         });
+    }
+
+    private void showProductAnalysisDialog(String title, List<String> detectedAllergens, String ingredients) {
+        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(requireContext());
+        builder.setTitle(title);
+
+        if (!detectedAllergens.isEmpty()) {
+            // Produkt NIEBEZPIECZNY
+            String warningMsg = "UWAGA! Produkt zawiera Twoje alergeny:\n- "
+                    + String.join("\n- ", detectedAllergens)
+                    + "\n\nSKŁAD:\n" + ingredients;
+            builder.setMessage(warningMsg);
+            builder.setIcon(android.R.drawable.ic_dialog_alert);
+        } else {
+            // Produkt BEZPIECZNY
+            builder.setMessage("Produkt wygląda na bezpieczny pod kątem Twoich zapisanych alergii!\n\nSKŁAD:\n" + ingredients);
+            builder.setIcon(android.R.drawable.ic_dialog_info);
+        }
+
+        builder.setPositiveButton("OK", (dialog, which) -> isScanning = true);
+        builder.setCancelable(false);
+        builder.show();
     }
 
     // Pomocnicze okno dialogowe z sukcesem

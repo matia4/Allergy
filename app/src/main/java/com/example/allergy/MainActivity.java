@@ -29,11 +29,7 @@ public class MainActivity extends AppCompatActivity {
         // 2. Obsługa kliknięć w dolny pasek menu
         bottomNavigationView.setOnItemSelectedListener(new NavigationBarView.OnItemSelectedListener() {
             @Override
-            public boolean onNavigationItemSelected(@NonNull MenuItem menuItem) {
-                return false;
-            }
-
-            public boolean onMenuItemSelected(@NonNull MenuItem item) {
+            public boolean onNavigationItemSelected(@NonNull MenuItem item) {
                 Fragment selectedFragment = null;
                 int id = item.getItemId();
 
@@ -44,8 +40,7 @@ public class MainActivity extends AppCompatActivity {
                     // Na potrzeby testu stworzymy pusty tymczasowy fragment
                     selectedFragment = DummyFragment.newInstance("Ekran Historii");
                 } else if (id == R.id.nav_allergies) {
-                    // W przyszłości: selectedFragment = new AllergiesFragment();
-                    selectedFragment = DummyFragment.newInstance("Ekran Zarzadzania Alergiami");
+                    selectedFragment = new AllergiesFragment();
                 }
 
                 if (selectedFragment != null) {

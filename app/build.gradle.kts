@@ -1,3 +1,5 @@
+import org.gradle.kotlin.dsl.implementation
+
 plugins {
     alias(libs.plugins.android.application)
 }
@@ -51,4 +53,6 @@ dependencies {
     implementation(libs.play.services.mlkit.barcode.scanning)
     implementation(libs.retrofit)
     implementation(libs.converter.gson)
+    implementation (libs.androidx.room.runtime)
+    annotationProcessor (libs.androidx.room.compiler)
 }

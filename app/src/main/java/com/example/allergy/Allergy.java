@@ -17,4 +17,11 @@ public class Allergy {
         this.offTag = offTag;
         this.isActive = isActive;
     }
+
+    public int getId() { return id; }
+    public void setId(int id) { this.id = id; }
+    public String getDisplayName() { return displayName; }
+    public String getOffTag() { return offTag; }
+    public boolean isActive() { return isActive; }
+    public void setActive(boolean active) { isActive = active; }
 }

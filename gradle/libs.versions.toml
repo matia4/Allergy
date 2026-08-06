@@ -16,6 +16,8 @@ roomCommonJvm = "2.8.4"
 [libraries]
 androidx-camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "cameraCamera2" }
 androidx-camera-view = { module = "androidx.camera:camera-view", version.ref = "cameraCamera2" }
+androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "roomCommonJvm" }
+androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "roomCommonJvm" }
 camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "cameraCamera2" }
 camera-core = { module = "androidx.camera:camera-core", version.ref = "cameraCore" }
 converter-gson = { module = "com.squareup.retrofit2:converter-gson", version.ref = "retrofit" }
