@@ -1,9 +1,11 @@
 package com.example.allergy;
 
+import android.content.Context;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
@@ -28,22 +30,35 @@ public class AllergiesFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
+        // 1. Inicjalizacja bazy danych Room oraz RecyclerView
         db = AppDatabase.getInstance(requireContext());
         recyclerView = view.findViewById(R.id.recyclerViewAllergies);
         recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
 
-        // Inicjalizacja domyślnych alergenów, jeśli baza jest pusta
+        // 2. Wypełnienie bazy początkowymi alergenami przy pierwszym uruchomieniu
         seedDatabaseIfEmpty();
 
-        // Pobranie danych z bazy i wyświetlenie na liście
+        // 3. Pobranie listy alergenów i ustawienie adaptera
         List<Allergy> allergies = db.allergyDAO().getAllAllergies();
+
         adapter = new AllergiesAdapter(allergies, allergy -> {
-            // Zapisz zmianę stanu w bazie Room
+            // Zapisz zmianę przełącznika w bazie Room
             db.allergyDAO().update(allergy);
+
+            // MECHANIZM RETROAKTYWNY: Jeśli użytkownik włączył nową alergię,
+            // przeszukaj historię skanów i zmień status produktów zawierających ten alergen.
+            if (allergy.isActive()) {
+                checkHistoryRetroactively(allergy);
+            }
         });
+
         recyclerView.setAdapter(adapter);
     }
 
+    /**
+     * Metoda uzupełniająca bazę Room 14 głównymi alergenami Unii Europejskiej,
+     * jeśli baza jest jeszcze pusta.
+     */
     private void seedDatabaseIfEmpty() {
         if (db.allergyDAO().getCount() == 0) {
             List<Allergy> defaultAllergies = new ArrayList<>();
@@ -63,6 +78,41 @@ public class AllergiesFragment extends Fragment {
             defaultAllergies.add(new Allergy("Mięczaki", "en:molluscs", false));
 
             db.allergyDAO().insertAll(defaultAllergies);
+        }
+    }
+
+    /**
+     * Przeszukuje tabelę z historią produktów i oznacza te,
+     * które zawierają nowo aktywowany alergen.
+     */
+    private void checkHistoryRetroactively(Allergy newAllergy) {
+        Context context = getContext();
+        if (context == null) return;
+
+        List<Product> allProducts = db.productDAO().getAllProducts();
+        int newAlertCount = 0;
+
+        for (Product product : allProducts) {
+            // Sprawdzamy, czy tagi skanowanego wcześniej produktu zawierają aktywowany alergen
+            if (product.getAllergensTagsJson() != null && product.getAllergensTagsJson().contains(newAllergy.getOffTag())) {
+
+                // Jeśli produkt wcześniej był oznaczony jako bezpieczny
+                if (!product.isAllergic()) {
+                    product.setAllergic(true);
+                    product.setNewAlert(true);
+                    product.setDetectedAllergens(newAllergy.getDisplayName());
+
+                    db.productDAO().update(product);
+                    newAlertCount++;
+                }
+            }
+        }
+
+        // Informujemy użytkownika dyskretnym powiadomieniem Toast
+        if (newAlertCount > 0) {
+            Toast.makeText(context,
+                    "Znaleziono " + newAlertCount + " produktów w historii zawierających: " + newAllergy.getDisplayName(),
+                    Toast.LENGTH_LONG).show();
         }
     }
 }

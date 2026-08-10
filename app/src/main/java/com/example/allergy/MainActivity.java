@@ -36,9 +36,7 @@ public class MainActivity extends AppCompatActivity {
                 if (id == R.id.nav_scanner) {
                     selectedFragment = new ScannerFragment();
                 } else if (id == R.id.nav_history) {
-                    // W przyszłości: selectedFragment = new HistoryFragment();
-                    // Na potrzeby testu stworzymy pusty tymczasowy fragment
-                    selectedFragment = DummyFragment.newInstance("Ekran Historii");
+                    selectedFragment = new HistoryFragment();
                 } else if (id == R.id.nav_allergies) {
                     selectedFragment = new AllergiesFragment();
                 }

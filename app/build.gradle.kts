@@ -6,16 +6,12 @@ plugins {
 
 android {
     namespace = "com.example.allergy"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.example.allergy"
         minSdk = 31
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 1
         versionName = "1.0"
 
@@ -53,6 +49,8 @@ dependencies {
     implementation(libs.play.services.mlkit.barcode.scanning)
     implementation(libs.retrofit)
     implementation(libs.converter.gson)
-    implementation (libs.androidx.room.runtime)
-    annotationProcessor (libs.androidx.room.compiler)
+    implementation(libs.androidx.room.runtime)
+    annotationProcessor(libs.androidx.room.compiler)
+    implementation(libs.glide)
+    annotationProcessor(libs.compiler)
 }

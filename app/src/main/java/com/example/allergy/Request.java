@@ -13,8 +13,12 @@ public class Request {
     @SerializedName("allergens_tags")
     private List<String> allergensTags;
 
+    @SerializedName("image_front_url")
+    private String imageUrl;
+
     // Gettery
     public String getProductName() { return productName != null ? productName : "Nieznany produkt"; }
     public String getIngredientsText() { return ingredientsText != null ? ingredientsText : "Brak danych o składzie"; }
     public List<String> getAllergensTags() { return allergensTags; }
+    public String getImageUrl() { return imageUrl; }
 }
