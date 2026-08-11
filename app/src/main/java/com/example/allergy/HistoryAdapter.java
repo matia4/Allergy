@@ -9,6 +9,7 @@ import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
@@ -65,10 +66,10 @@ public class HistoryAdapter extends RecyclerView.Adapter<HistoryAdapter.HistoryV
         boolean isOutdated = (System.currentTimeMillis() - product.getLastUpdated()) > ttlDuration;
 
         if (isOutdated) {
-            String label = isTestMode ? "🕒 Przestarzałe (>1 min)" : "🕒 Przestarzałe (>1 rok)";
-            holder.tvScanDate.setText("Skanowano: " + dateStr + "\n" + label);
+            String label = isTestMode ? holder.itemView.getContext().getString(R.string.outdated_label_min) : holder.itemView.getContext().getString(R.string.outdated_label_year);
+            holder.tvScanDate.setText(holder.itemView.getContext().getString(R.string.scanned_at, dateStr) + "\n" + label);
         } else {
-            holder.tvScanDate.setText("Skanowano: " + dateStr);
+            holder.tvScanDate.setText(holder.itemView.getContext().getString(R.string.scanned_at, dateStr));
         }
 
         if (product.isNewAlert()) {
@@ -79,13 +80,13 @@ public class HistoryAdapter extends RecyclerView.Adapter<HistoryAdapter.HistoryV
 
         // Status bezpieczeństwa
         if (product.isAllergic()) {
-            holder.tvStatusBadge.setText("ZAWIERA: " + product.getDetectedAllergens());
-            holder.tvStatusBadge.setBackgroundColor(Color.parseColor("#FFCDD2")); // Jasnoczerwony
-            holder.tvStatusBadge.setTextColor(Color.parseColor("#B71C1C"));
+            holder.tvStatusBadge.setText(holder.itemView.getContext().getString(R.string.status_contains, product.getDetectedAllergens()));
+            holder.tvStatusBadge.setBackgroundColor(ContextCompat.getColor(holder.itemView.getContext(), R.color.red_alert_bg));
+            holder.tvStatusBadge.setTextColor(ContextCompat.getColor(holder.itemView.getContext(), R.color.red_alert_text));
         } else {
-            holder.tvStatusBadge.setText("BEZPIECZNY");
-            holder.tvStatusBadge.setBackgroundColor(Color.parseColor("#C8E6C9")); // Jasnozielony
-            holder.tvStatusBadge.setTextColor(Color.parseColor("#1B5E20"));
+            holder.tvStatusBadge.setText(R.string.status_safe);
+            holder.tvStatusBadge.setBackgroundColor(ContextCompat.getColor(holder.itemView.getContext(), R.color.green_safe_bg));
+            holder.tvStatusBadge.setTextColor(ContextCompat.getColor(holder.itemView.getContext(), R.color.green_safe_text));
         }
 
         holder.itemView.setOnClickListener(v -> listener.OnProductClick(product));

@@ -12,7 +12,7 @@ import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.google.android.material.switchmaterial.SwitchMaterial;
+import com.google.android.material.materialswitch.MaterialSwitch;
 
 import java.util.List;
 
@@ -21,7 +21,7 @@ public class HistoryFragment extends Fragment {
     private RecyclerView recyclerView;
     private HistoryAdapter adapter;
     private AppDatabase db;
-    private SwitchMaterial switchTestTtl;
+    private MaterialSwitch switchTestTtl;
     private SharedPreferences prefs;
 
     @Nullable
@@ -70,8 +70,8 @@ public class HistoryFragment extends Fragment {
             // Wyświetlamy szczegóły składu
             new androidx.appcompat.app.AlertDialog.Builder(context)
                     .setTitle(product.getName())
-                    .setMessage("SKŁAD:\n" + product.getIngredients())
-                    .setPositiveButton("Zamknij", null)
+                    .setMessage(getString(R.string.ingredients_title) + product.getIngredients())
+                    .setPositiveButton(R.string.close, null)
                     .show();
         });
         recyclerView.setAdapter(adapter);

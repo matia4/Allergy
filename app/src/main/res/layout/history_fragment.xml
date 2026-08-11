@@ -4,35 +4,40 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     android:padding="16dp">
 
-    <LinearLayout
-        android:id="@+id/llTtlContainer"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:background="#1E88E5"
-        android:padding="12dp"
-        android:gravity="center_vertical"
-        app:layout_constraintTop_toTopOf="parent"
+    <View
+        android:id="@+id/vTtlBackground"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@color/blue_primary"
+        app:layout_constraintBottom_toBottomOf="@+id/switchTestTtl"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
+        app:layout_constraintTop_toTopOf="parent" />
 
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Tryb testowy TTL (1 min zamiast 1 roku)"
-            android:textColor="@android:color/white"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+    <TextView
+        android:id="@+id/tvTtlLabel"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:text="@string/test_ttl_label"
+        android:textColor="@android:color/white"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toBottomOf="@+id/switchTestTtl"
+        app:layout_constraintEnd_toStartOf="@+id/switchTestTtl"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/switchTestTtl" />
 
-        <com.google.android.material.switchmaterial.SwitchMaterial
-            android:id="@+id/switchTestTtl"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
-    </LinearLayout>
+    <com.google.android.material.materialswitch.MaterialSwitch
+        android:id="@+id/switchTestTtl"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginVertical="12dp"
+        android:layout_marginEnd="12dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
     <TextView
         android:id="@+id/tvHistoryTitle"
@@ -44,16 +49,16 @@
         android:textSize="24sp"
         android:textStyle="bold"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/llTtlContainer" />
+        app:layout_constraintTop_toBottomOf="@id/vTtlBackground" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerViewHistory"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:layout_marginTop="16dp"
-        app:layout_constraintTop_toBottomOf="@id/tvHistoryTitle"
         app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/tvHistoryTitle" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -5,4 +5,23 @@
     <string name="scan_barcode">Scan barcode</string>
     <string name="scanner">Scanner</string>
     <string name="allergy_choice">Choose your allergies</string>
+    <string name="test_ttl_label">Test mode TTL (1 min instead of 1 year)</string>
+    <string name="product_image_desc">Product image</string>
+    <string name="alert_badge">ALERT</string>
+    <string name="scanned_at">Scanned: %1$s</string>
+    <string name="outdated_label_min">🕒 Outdated (>1 min)</string>
+    <string name="outdated_label_year">🕒 Outdated (>1 year)</string>
+    <string name="status_contains">CONTAINS: %1$s</string>
+    <string name="status_safe">SAFE</string>
+    <string name="close">Close</string>
+    <string name="ingredients_title">INGREDIENTS:\n</string>
+    <string name="error_camera">Camera error: %1$s</string>
+    <string name="outdated_warning">WARNING: Data may be outdated (scanned over a year ago or no network).\n\n</string>
+    <string name="detected_allergens_warning">WARNING! Contains your allergens:\n- %1$s</string>
+    <string name="product_safe">Product safe for your saved allergies.</string>
+    <string name="product_not_found">Product does not exist in Open Food Facts database.</string>
+    <string name="network_error">Network error and no product in local database.</string>
+    <string name="problem_product">Product problem</string>
+    <string name="try_again">Try again</string>
+    <string name="camera_required">Camera is required for scanning!</string>
 </resources>

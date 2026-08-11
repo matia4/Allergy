@@ -14,6 +14,8 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.camera.core.CameraSelector;
@@ -36,7 +38,15 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
     private PreviewView previewView;
     private ExecutorService cameraExecutor;
     private boolean isScanning = true;
-    private static final int CAMERA_REQUEST_CODE = 101;
+
+    private final ActivityResultLauncher<String> requestPermissionLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
+                if (isGranted) {
+                    startCamera();
+                } else {
+                    Toast.makeText(requireContext(), R.string.camera_required, Toast.LENGTH_SHORT).show();
+                }
+            });
 
     @Nullable
     @Override
@@ -55,7 +65,7 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
         if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             startCamera();
         } else {
-            requestPermissions(new String[]{Manifest.permission.CAMERA}, CAMERA_REQUEST_CODE);
+            requestPermissionLauncher.launch(Manifest.permission.CAMERA);
         }
     }
 
@@ -79,7 +89,7 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
                 cameraProvider.bindToLifecycle(getViewLifecycleOwner(), cameraSelector, preview, imageAnalysis);
 
             } catch (ExecutionException | InterruptedException e) {
-                Toast.makeText(requireContext(), "Błąd kamery: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                Toast.makeText(requireContext(), getString(R.string.error_camera, e.getMessage()), Toast.LENGTH_SHORT).show();
             }
         }, ContextCompat.getMainExecutor(requireContext()));
     }
@@ -163,7 +173,7 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
                                         existingProduct.isAllergic() ? List.of(existingProduct.getDetectedAllergens()) : List.of(),
                                         existingProduct.getIngredients(), existingProduct.getImageUrl(), true);
                             } else {
-                                showErrorDialog("Produkt nie istnieje w bazie Open Food Facts.");
+                                showErrorDialog(getString(R.string.product_not_found));
                             }
                         }
                 }
@@ -178,7 +188,7 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
                                 existingProduct.isAllergic() ? List.of(existingProduct.getDetectedAllergens()) : List.of(),
                                 existingProduct.getIngredients(), existingProduct.getImageUrl(), true);
                     } else {
-                        showErrorDialog("Błąd sieci i brak produktu w lokalnej bazie.");
+                        showErrorDialog(getString(R.string.network_error));
                     }
                 }
             });
@@ -203,55 +213,34 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
         }
 
         if (isOutdatedWarning) {
-            msg.append("UWAGA: Dane mogą być nieaktualne (skanowane ponad rok temu lub brak sieci).\n\n");
+            msg.append(getString(R.string.outdated_warning));
         }
 
         if (!detectedAllergens.isEmpty()) {
-            msg.append("UWAGA! Zawiera Twoje alergeny:\n- ").append(String.join("\n- ", detectedAllergens));
+            msg.append(getString(R.string.detected_allergens_warning, String.join("\n- ", detectedAllergens)));
             builder.setIcon(android.R.drawable.ic_dialog_alert);
         } else {
-            msg.append("Produkt bezpieczny pod kątem Twoich zapisanych alergii.");
+            msg.append(getString(R.string.product_safe));
             builder.setIcon(android.R.drawable.ic_dialog_info);
         }
 
-        msg.append("\n\nSKŁAD:\n").append(ingredients);
+        msg.append("\n\n").append(getString(R.string.ingredients_title)).append(ingredients);
         builder.setMessage(msg.toString());
         builder.setPositiveButton("OK", (dialog, which) -> isScanning = true);
         builder.setCancelable(false);
         builder.show();
     }
 
-    // Pomocnicze okno dialogowe z sukcesem
-    private void showProductDialog(String title, String allergens, String ingredients) {
-        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
-                .setTitle(title)
-                .setMessage("ALERGENY (Tagi z API):\n" + allergens + "\n\nSKŁAD:\n" + ingredients)
-                .setPositiveButton("OK", (dialog, which) -> {
-                    isScanning = true; // Odblokowujemy skaner po zamknięciu okna
-                })
-                .setCancelable(false)
-                .show();
-    }
-
     // Pomocnicze okno dialogowe z błędem
     private void showErrorDialog(String message) {
         new androidx.appcompat.app.AlertDialog.Builder(requireContext())
-                .setTitle("Problem z produktem")
+                .setTitle(R.string.problem_product)
                 .setMessage(message)
-                .setPositiveButton("Spróbuj ponownie", (dialog, which) -> {
+                .setPositiveButton(R.string.try_again, (dialog, which) -> {
                     isScanning = true; // Odblokowujemy skaner
                 })
                 .setCancelable(false)
                 .show();
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        if (requestCode == CAMERA_REQUEST_CODE && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            startCamera();
-        } else {
-            Toast.makeText(requireContext(), "Kamera jest wymagana do skanowania!", Toast.LENGTH_SHORT).show();
-        }
     }
 
     @Override
