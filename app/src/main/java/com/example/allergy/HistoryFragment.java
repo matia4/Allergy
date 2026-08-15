@@ -1,6 +1,5 @@
 package com.example.allergy;
 
-import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.content.Context;
 import android.view.LayoutInflater;
@@ -9,20 +8,20 @@ import android.view.ViewGroup;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.google.android.material.materialswitch.MaterialSwitch;
+import com.google.android.material.snackbar.Snackbar;
 
 import java.util.List;
+import java.util.concurrent.Executors;
 
 public class HistoryFragment extends Fragment {
 
     private RecyclerView recyclerView;
     private HistoryAdapter adapter;
     private AppDatabase db;
-    private MaterialSwitch switchTestTtl;
-    private SharedPreferences prefs;
 
     @Nullable
     @Override
@@ -38,42 +37,80 @@ public class HistoryFragment extends Fragment {
         recyclerView = view.findViewById(R.id.recyclerViewHistory);
         recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
 
-        switchTestTtl = view.findViewById(R.id.switchTestTtl);
-        prefs = requireContext().getSharedPreferences("app_prefs", Context.MODE_PRIVATE);
-
-        // 1. Wczytaj zapamiętany stan z SharedPreferences
-        boolean isTestTtlActive = prefs.getBoolean("test_ttl_enabled", false);
-        switchTestTtl.setChecked(isTestTtlActive);
-
-        // 2. Reaguj na zmianę switcha i zapisuj stan
-        switchTestTtl.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            prefs.edit().putBoolean("test_ttl_enabled", isChecked).apply();
-            loadHistory(); // Odśwież historię z nowym czasem ważności
-        });
-
         loadHistory();
+
+        ItemTouchHelper.SimpleCallback simpleItemTouchCallback = new ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT | ItemTouchHelper.RIGHT) {
+            @Override
+            public boolean onMove(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder, @NonNull RecyclerView.ViewHolder target) {
+                return false; // Nie obsługujemy zmiany kolejności (drag & drop)
+            }
+
+            @Override
+            public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int direction) {
+                int position = viewHolder.getBindingAdapterPosition();
+                if (adapter == null) return;
+                
+                Product productToDelete = adapter.getProductAt(position);
+
+                // 1. Usuwamy lokalnie z listy w adapterze, żeby UI zareagowało natychmiast
+                adapter.removeProductAt(position);
+
+                // 2. Usuwamy z bazy danych Room w osobnym wątku
+                Executors.newSingleThreadExecutor().execute(() -> {
+                    db.productDAO().deleteProduct(productToDelete);
+                });
+
+                // 3. Pokazujemy powiadomienie Snackbar z opcją "Cofnij"
+                Snackbar.make(recyclerView, R.string.product_deleted, Snackbar.LENGTH_LONG)
+                        .setAction(R.string.undo, v -> {
+                            // Przywracamy produkt w tle
+                            Executors.newSingleThreadExecutor().execute(() -> {
+                                db.productDAO().insertOrUpdate(productToDelete);
+
+                                // Odświeżamy listę na wątku UI
+                                if (isAdded()) {
+                                    requireActivity().runOnUiThread(() -> {
+                                        adapter.addProductAt(position, productToDelete);
+                                    });
+                                }
+                            });
+                        })
+                        .show();
+            }
+        };
+
+        ItemTouchHelper itemTouchHelper = new ItemTouchHelper(simpleItemTouchCallback);
+        itemTouchHelper.attachToRecyclerView(recyclerView);
     }
 
     private void loadHistory() {
-        List<Product> products = db.productDAO().getAllProducts();
-        adapter = new HistoryAdapter(products, product -> {
-            Context context = getContext();
-            if (context == null) return;
+        Executors.newSingleThreadExecutor().execute(() -> {
+            List<Product> products = db.productDAO().getAllProducts();
+            if (isAdded()) {
+                requireActivity().runOnUiThread(() -> {
+                    adapter = new HistoryAdapter(products, product -> {
+                        Context context = getContext();
+                        if (context == null) return;
 
-            // Po kliknięciu usuwamy wykrzyknik "nowy alert" i zapisujemy stan
-            if (product.isNewAlert()) {
-                product.setNewAlert(false);
-                db.productDAO().update(product);
-                loadHistory(); // Odświeżamy listę
+                        // Po kliknięciu usuwamy wykrzyknik "nowy alert" i zapisujemy stan
+                        if (product.isNewAlert()) {
+                            product.setNewAlert(false);
+                            Executors.newSingleThreadExecutor().execute(() -> {
+                                db.productDAO().update(product);
+                                loadHistory(); // Odświeżamy listę
+                            });
+                        }
+
+                        // Wyświetlamy szczegóły składu
+                        new androidx.appcompat.app.AlertDialog.Builder(context)
+                                .setTitle(product.getName())
+                                .setMessage(getString(R.string.ingredients_title) + product.getIngredients())
+                                .setPositiveButton(R.string.close, null)
+                                .show();
+                    });
+                    recyclerView.setAdapter(adapter);
+                });
             }
-
-            // Wyświetlamy szczegóły składu
-            new androidx.appcompat.app.AlertDialog.Builder(context)
-                    .setTitle(product.getName())
-                    .setMessage(getString(R.string.ingredients_title) + product.getIngredients())
-                    .setPositiveButton(R.string.close, null)
-                    .show();
         });
-        recyclerView.setAdapter(adapter);
     }
 }

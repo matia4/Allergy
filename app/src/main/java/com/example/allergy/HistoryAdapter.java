@@ -1,8 +1,5 @@
 package com.example.allergy;
 
-import android.content.Context;
-import android.content.SharedPreferences;
-import android.graphics.Color;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -13,24 +10,44 @@ import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 
+import java.lang.reflect.Type;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
 public class HistoryAdapter extends RecyclerView.Adapter<HistoryAdapter.HistoryViewHolder> {
 
-    private List<Product> productList;
-    private OnProductClickListener listener;
+    private final List<Product> productList;
+    private final OnProductClickListener listener;
 
     public interface OnProductClickListener {
-        void OnProductClick(Product product);
+        void onProductClick(Product product);
     }
 
     public HistoryAdapter(List<Product> productList, OnProductClickListener listener) {
         this.productList = productList;
         this.listener = listener;
+    }
+
+    public Product getProductAt(int position) {
+        return productList.get(position);
+    }
+
+    // Usuwa produkt z listy adaptera
+    public void removeProductAt(int position) {
+        productList.remove(position);
+        notifyItemRemoved(position);
+    }
+
+    // Przywraca produkt na daną pozycję (dla opcji "Cofnij")
+    public void addProductAt(int position, Product product) {
+        productList.add(position, product);
+        notifyItemInserted(position);
     }
 
     @NonNull
@@ -55,19 +72,37 @@ public class HistoryAdapter extends RecyclerView.Adapter<HistoryAdapter.HistoryV
             holder.ivProductImage.setImageResource(android.R.drawable.ic_menu_gallery);
         }
 
-        SharedPreferences prefs = holder.itemView.getContext().getSharedPreferences("app_prefs", Context.MODE_PRIVATE);
-        boolean isTestMode = prefs.getBoolean("test_ttl_enabled", false);
-        long ttlDuration = isTestMode ? (60 * 1000L) : (365L * 24 * 60 * 60 * 1000L);
+        List<String> categoriesTagsList = new ArrayList<>();
+        if (product.getCategoriesTagsJson() != null && !product.getCategoriesTagsJson().isEmpty()) {
+            try {
+                Type listType = new TypeToken<List<String>>(){}.getType();
+                categoriesTagsList = new Gson().fromJson(product.getCategoriesTagsJson(), listType);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
 
-        // Formatowanie daty
+        final List<String> finalCategories = categoriesTagsList;
+
+        holder.itemView.findViewById(R.id.btnFindAlternativesHistory).setOnClickListener(v -> {
+            RecommendationHelper.showHierarchicalRecommendationsDialog(
+                    holder.itemView.getContext(),
+                    product.getBarcode(),
+                    finalCategories,
+                    null
+            );
+        });
+
+        long ttlDuration = 365L * 24 * 60 * 60 * 1000L; // 1 rok
+
         SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault());
         String dateStr = sdf.format(new Date(product.getLastUpdated()));
 
         boolean isOutdated = (System.currentTimeMillis() - product.getLastUpdated()) > ttlDuration;
 
         if (isOutdated) {
-            String label = isTestMode ? holder.itemView.getContext().getString(R.string.outdated_label_min) : holder.itemView.getContext().getString(R.string.outdated_label_year);
-            holder.tvScanDate.setText(holder.itemView.getContext().getString(R.string.scanned_at, dateStr) + "\n" + label);
+            String label = holder.itemView.getContext().getString(R.string.outdated_label_year);
+            holder.tvScanDate.setText(holder.itemView.getContext().getString(R.string.scanned_at, dateStr + "\n" + label));
         } else {
             holder.tvScanDate.setText(holder.itemView.getContext().getString(R.string.scanned_at, dateStr));
         }
@@ -78,7 +113,6 @@ public class HistoryAdapter extends RecyclerView.Adapter<HistoryAdapter.HistoryV
             holder.tvNewAlertBadge.setVisibility(View.GONE);
         }
 
-        // Status bezpieczeństwa
         if (product.isAllergic()) {
             holder.tvStatusBadge.setText(holder.itemView.getContext().getString(R.string.status_contains, product.getDetectedAllergens()));
             holder.tvStatusBadge.setBackgroundColor(ContextCompat.getColor(holder.itemView.getContext(), R.color.red_alert_bg));
@@ -89,15 +123,18 @@ public class HistoryAdapter extends RecyclerView.Adapter<HistoryAdapter.HistoryV
             holder.tvStatusBadge.setTextColor(ContextCompat.getColor(holder.itemView.getContext(), R.color.green_safe_text));
         }
 
-        holder.itemView.setOnClickListener(v -> listener.OnProductClick(product));
+        holder.itemView.setOnClickListener(v -> listener.onProductClick(product));
     }
 
     @Override
     public int getItemCount() { return productList.size(); }
 
     static class HistoryViewHolder extends RecyclerView.ViewHolder {
-        ImageView ivProductImage;
-        TextView tvProductName, tvScanDate, tvStatusBadge, tvNewAlertBadge;
+        final ImageView ivProductImage;
+        final TextView tvProductName;
+        final TextView tvScanDate;
+        final TextView tvStatusBadge;
+        final TextView tvNewAlertBadge;
 
         public HistoryViewHolder(@NonNull View itemView) {
             super(itemView);

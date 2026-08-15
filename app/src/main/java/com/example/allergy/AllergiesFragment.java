@@ -1,118 +1,105 @@
 package com.example.allergy;
 
-import android.content.Context;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.widget.SearchView;
 import androidx.fragment.app.Fragment;
-import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import java.util.ArrayList;
+
+import java.util.Collections;
 import java.util.List;
 
 public class AllergiesFragment extends Fragment {
-
     private RecyclerView recyclerView;
-    private AllergiesAdapter adapter;
+    private AllergyTileAdapter adapter;
+    private List<Allergy> allergyList;
     private AppDatabase db;
+    private GridLayoutManager layoutManager;
 
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-        return inflater.inflate(R.layout.activity_allergies, container, false);
+        return inflater.inflate(R.layout.allergy_fragment, container, false);
     }
 
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        // 1. Inicjalizacja bazy danych Room oraz RecyclerView
         db = AppDatabase.getInstance(requireContext());
         recyclerView = view.findViewById(R.id.recyclerViewAllergies);
-        recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
+        SearchView searchView = view.findViewById(R.id.searchViewAllergy);
 
-        // 2. Wypełnienie bazy początkowymi alergenami przy pierwszym uruchomieniu
-        seedDatabaseIfEmpty();
+        // Ustawiamy Grid na 2 kolumny kafelków
+        layoutManager = new GridLayoutManager(requireContext(), 2);
+        recyclerView.setLayoutManager(layoutManager);
 
-        // 3. Pobranie listy alergenów i ustawienie adaptera
-        List<Allergy> allergies = db.allergyDAO().getAllAllergies();
+        loadAndSortAllergies();
 
-        adapter = new AllergiesAdapter(allergies, allergy -> {
-            // Zapisz zmianę przełącznika w bazie Room
-            db.allergyDAO().update(allergy);
+        // 1. Logika kliknięcia w kafelek
+        adapter = new AllergyTileAdapter(allergyList, (allergy, position) -> {
+            // Odwracamy stan zaznaczenia
+            allergy.setActive(!allergy.isActive());
 
-            // MECHANIZM RETROAKTYWNY: Jeśli użytkownik włączył nową alergię,
-            // przeszukaj historię skanów i zmień status produktów zawierających ten alergen.
+            // Zapisujemy w bazie w tle
+            new Thread(() -> db.allergyDAO().update(allergy)).start();
+
+            // Sortujemy listę na nowo i odświeżamy widok
+            sortAllergies();
+            adapter.updateList(allergyList);
+
+            // Przewijamy na samą górę, jeśli użytkownik zaznaczył nowy element,
+            // żeby od razu widział go w "wybranych"
             if (allergy.isActive()) {
-                checkHistoryRetroactively(allergy);
+                recyclerView.scrollToPosition(0);
             }
         });
-
         recyclerView.setAdapter(adapter);
-    }
 
-    /**
-     * Metoda uzupełniająca bazę Room 14 głównymi alergenami Unii Europejskiej,
-     * jeśli baza jest jeszcze pusta.
-     */
-    private void seedDatabaseIfEmpty() {
-        if (db.allergyDAO().getCount() == 0) {
-            List<Allergy> defaultAllergies = new ArrayList<>();
-            defaultAllergies.add(new Allergy("Gluten", "en:gluten", false));
-            defaultAllergies.add(new Allergy("Mleko (Laktoza)", "en:milk", false));
-            defaultAllergies.add(new Allergy("Orzeszki ziemne", "en:peanuts", false));
-            defaultAllergies.add(new Allergy("Orzechy", "en:nuts", false));
-            defaultAllergies.add(new Allergy("Jaja", "en:eggs", false));
-            defaultAllergies.add(new Allergy("Soja", "en:soybeans", false));
-            defaultAllergies.add(new Allergy("Ryby", "en:fish", false));
-            defaultAllergies.add(new Allergy("Skorupiaki", "en:crustaceans", false));
-            defaultAllergies.add(new Allergy("Seler", "en:celery", false));
-            defaultAllergies.add(new Allergy("Gorczyca (Musztarda)", "en:mustard", false));
-            defaultAllergies.add(new Allergy("Nasiona sezamu", "en:sesame-seeds", false));
-            defaultAllergies.add(new Allergy("Siarczyny", "en:sulphur-dioxide-and-sulphites", false));
-            defaultAllergies.add(new Allergy("Łubin", "en:lupin", false));
-            defaultAllergies.add(new Allergy("Mięczaki", "en:molluscs", false));
-
-            db.allergyDAO().insertAll(defaultAllergies);
-        }
-    }
-
-    /**
-     * Przeszukuje tabelę z historią produktów i oznacza te,
-     * które zawierają nowo aktywowany alergen.
-     */
-    private void checkHistoryRetroactively(Allergy newAllergy) {
-        Context context = getContext();
-        if (context == null) return;
-
-        List<Product> allProducts = db.productDAO().getAllProducts();
-        int newAlertCount = 0;
-
-        for (Product product : allProducts) {
-            // Sprawdzamy, czy tagi skanowanego wcześniej produktu zawierają aktywowany alergen
-            if (product.getAllergensTagsJson() != null && product.getAllergensTagsJson().contains(newAllergy.getOffTag())) {
-
-                // Jeśli produkt wcześniej był oznaczony jako bezpieczny
-                if (!product.isAllergic()) {
-                    product.setAllergic(true);
-                    product.setNewAlert(true);
-                    product.setDetectedAllergens(newAllergy.getDisplayName());
-
-                    db.productDAO().update(product);
-                    newAlertCount++;
-                }
+        // 2. Logika wyszukiwania (Scrollowanie do szukanej pozycji)
+        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+            @Override
+            public boolean onQueryTextSubmit(String query) {
+                return false;
             }
-        }
 
-        // Informujemy użytkownika dyskretnym powiadomieniem Toast
-        if (newAlertCount > 0) {
-            Toast.makeText(context,
-                    "Znaleziono " + newAlertCount + " produktów w historii zawierających: " + newAllergy.getDisplayName(),
-                    Toast.LENGTH_LONG).show();
-        }
+            @Override
+            public boolean onQueryTextChange(String newText) {
+                if (newText.isEmpty()) return false;
+
+                String searchLower = newText.toLowerCase();
+                for (int i = 0; i < allergyList.size(); i++) {
+                    // Jeśli nazwa zawiera wpisaną frazę
+                    if (allergyList.get(i).getDisplayName().toLowerCase().contains(searchLower)) {
+                        // Scrollujemy listę tak, aby znaleziony element znalazł się na górze ekranu
+                        layoutManager.scrollToPositionWithOffset(i, 0);
+                        break; // Znaleźliśmy pierwszy pasujący, przerywamy pętlę
+                    }
+                }
+                return true;
+            }
+        });
+    }
+
+    private void loadAndSortAllergies() {
+        allergyList = db.allergyDAO().getAllAllergies(); // Pobieramy z bazy
+        sortAllergies(); // Sortujemy
+    }
+
+    // Funkcja sortująca: Aktywne alergie lądują na samej górze, reszta alfabetycznie na dole
+    private void sortAllergies() {
+        Collections.sort(allergyList, (a1, a2) -> {
+            // 1. Najpierw sortowanie po statusie aktywności
+            if (a1.isActive() && !a2.isActive()) return -1; // a1 idzie wyżej
+            if (!a1.isActive() && a2.isActive()) return 1;  // a2 idzie wyżej
+
+            // 2. Jeśli oba są aktywne (lub oba nieaktywne), sortujemy alfabetycznie
+            return a1.getDisplayName().compareToIgnoreCase(a2.getDisplayName());
+        });
     }
 }

@@ -12,6 +12,7 @@ public class Product {
     private String name;
     private String ingredients;
     private String allergensTagsJson; // Przechowujemy tagi z API jako ciąg tekstowy
+    private String categoriesTagsJson; // Przechowujemy tagi kategorii z API
     private long lastUpdated;         // Timestamp w milisekundach
     private boolean isAllergic;       // Czy zawiera alergen użytkownika
     private boolean isNewAlert;       // Flaga retroaktywnego alertu
@@ -19,12 +20,13 @@ public class Product {
     private String imageUrl;
 
     public Product(@NonNull String barcode, String name, String ingredients,
-                   String allergensTagsJson, long lastUpdated,
+                   String allergensTagsJson, String categoriesTagsJson, long lastUpdated,
                    boolean isAllergic, boolean isNewAlert, String detectedAllergens, String imageUrl) {
         this.barcode = barcode;
         this.name = name;
         this.ingredients = ingredients;
         this.allergensTagsJson = allergensTagsJson;
+        this.categoriesTagsJson = categoriesTagsJson;
         this.lastUpdated = lastUpdated;
         this.isAllergic = isAllergic;
         this.isNewAlert = isNewAlert;
@@ -36,6 +38,7 @@ public class Product {
     public String getName() { return name; }
     public String getIngredients() { return ingredients; }
     public String getAllergensTagsJson() { return allergensTagsJson; }
+    public String getCategoriesTagsJson() { return categoriesTagsJson; }
     public long getLastUpdated() { return lastUpdated; }
     public boolean isAllergic() { return isAllergic; }
     public void setAllergic(boolean allergic) { isAllergic = allergic; }

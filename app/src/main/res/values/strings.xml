@@ -5,11 +5,11 @@
     <string name="scan_barcode">Scan barcode</string>
     <string name="scanner">Scanner</string>
     <string name="allergy_choice">Choose your allergies</string>
-    <string name="test_ttl_label">Test mode TTL (1 min instead of 1 year)</string>
+
     <string name="product_image_desc">Product image</string>
     <string name="alert_badge">ALERT</string>
     <string name="scanned_at">Scanned: %1$s</string>
-    <string name="outdated_label_min">🕒 Outdated (>1 min)</string>
+
     <string name="outdated_label_year">🕒 Outdated (>1 year)</string>
     <string name="status_contains">CONTAINS: %1$s</string>
     <string name="status_safe">SAFE</string>
@@ -24,4 +24,19 @@
     <string name="problem_product">Product problem</string>
     <string name="try_again">Try again</string>
     <string name="camera_required">Camera is required for scanning!</string>
+    <string name="product_name">Product name</string>
+    <string name="safe_alternative">Safe alternative</string>
+    <string name="couldnt_find">Couldn\'t find safe alternatives</string>
+    <string name="safe_alternatives">Safe alternatives</string>
+    <string name="category">Category: ...</string>
+    <string name="category_label">Category: %1$s (Level: %2$d/%3$d)</string>
+    <string name="no_alternatives_found">No safe alternatives found even in the broadest categories.</string>
+    <string name="no_alternatives_title">No alternatives</string>
+    <string name="no_categories_error">This product has no categories assigned, we cannot find similar ones.</string>
+    <string name="ingredients_full_title">INGREDIENTS:\n%1$s</string>
+    <string name="unknown_composition">No ingredients description available.</string>
+    <string name="error_network">Network error during search.</string>
+    <string name="product_deleted">Product deleted</string>
+    <string name="undo">Undo</string>
+    <string name="allergy_name">Allergy name</string>
 </resources>

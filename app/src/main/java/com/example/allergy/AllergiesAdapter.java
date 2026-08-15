@@ -12,8 +12,8 @@ import java.util.List;
 
 public class AllergiesAdapter extends RecyclerView.Adapter<AllergiesAdapter.AllergyViewHolder> {
 
-    private List<Allergy> allergyList;
-    private OnAllergyChangeListener listener;
+    private final List<Allergy> allergyList;
+    private final OnAllergyChangeListener listener;
 
     public interface OnAllergyChangeListener {
         void onAllergyChanged(Allergy allergy);
@@ -49,8 +49,8 @@ public class AllergiesAdapter extends RecyclerView.Adapter<AllergiesAdapter.Alle
     public int getItemCount() { return allergyList.size(); }
 
     static class AllergyViewHolder extends RecyclerView.ViewHolder {
-        TextView tvName;
-        MaterialSwitch switchAllergy;
+        final TextView tvName;
+        final MaterialSwitch switchAllergy;
 
         public AllergyViewHolder(@NonNull View itemView) {
             super(itemView);

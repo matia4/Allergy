@@ -2,9 +2,9 @@ package com.example.allergy;
 
 import android.Manifest;
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.util.Log;
 import android.util.Size;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -21,12 +21,18 @@ import androidx.fragment.app.Fragment;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ImageAnalysis;
 import androidx.camera.core.Preview;
+import androidx.camera.core.resolutionselector.ResolutionSelector;
+import androidx.camera.core.resolutionselector.ResolutionStrategy;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
 
 import com.bumptech.glide.Glide;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 
+import java.lang.reflect.Type;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -35,8 +41,10 @@ import java.util.concurrent.Executors;
 
 public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerListener {
 
+    private static final String TAG = "ScannerFragment";
     private PreviewView previewView;
     private ExecutorService cameraExecutor;
+    private AnalyzeBarcode analyzeBarcode;
     private boolean isScanning = true;
 
     private final ActivityResultLauncher<String> requestPermissionLauncher =
@@ -51,7 +59,6 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-        // Podpinamy layout dedykowany dla fragmentu skanera
         return inflater.inflate(R.layout.scanner, container, false);
     }
 
@@ -61,7 +68,6 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
         previewView = view.findViewById(R.id.previewView);
         cameraExecutor = Executors.newSingleThreadExecutor();
 
-        // Sprawdzamy uprawnienia wewnątrz fragmentu
         if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             startCamera();
         } else {
@@ -70,77 +76,92 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
     }
 
     private void startCamera() {
-        ListenableFuture<ProcessCameraProvider> cameraProviderFuture = ProcessCameraProvider.getInstance(requireContext());
+        Context context = getContext();
+        if (context == null) return;
+
+        ListenableFuture<ProcessCameraProvider> cameraProviderFuture = ProcessCameraProvider.getInstance(context);
         cameraProviderFuture.addListener(() -> {
             try {
+                if (!isAdded()) return;
+
                 ProcessCameraProvider cameraProvider = cameraProviderFuture.get();
                 Preview preview = new Preview.Builder().build();
                 preview.setSurfaceProvider(previewView.getSurfaceProvider());
 
+                ResolutionSelector resolutionSelector = new ResolutionSelector.Builder()
+                        .setResolutionStrategy(new ResolutionStrategy(new Size(1280, 720),
+                                ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER))
+                        .build();
+
                 ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
-                        .setTargetResolution(new Size(1280, 720))
+                        .setResolutionSelector(resolutionSelector)
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                         .build();
 
-                imageAnalysis.setAnalyzer(cameraExecutor, new AnalyzeBarcode(this));
+                analyzeBarcode = new AnalyzeBarcode(this);
+                imageAnalysis.setAnalyzer(cameraExecutor, analyzeBarcode);
                 CameraSelector cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA;
 
                 cameraProvider.unbindAll();
                 cameraProvider.bindToLifecycle(getViewLifecycleOwner(), cameraSelector, preview, imageAnalysis);
 
             } catch (ExecutionException | InterruptedException e) {
-                Toast.makeText(requireContext(), getString(R.string.error_camera, e.getMessage()), Toast.LENGTH_SHORT).show();
+                Context currentContext = getContext();
+                if (currentContext != null) {
+                    Toast.makeText(currentContext, getString(R.string.error_camera, e.getMessage()), Toast.LENGTH_SHORT).show();
+                }
             }
-        }, ContextCompat.getMainExecutor(requireContext()));
+        }, ContextCompat.getMainExecutor(context));
     }
 
     @Override
     public void onBarcodeScanned(String rawValue) {
-        if (!isScanning) return;
+        if (!isScanning || !isAdded()) return;
+
+        androidx.fragment.app.FragmentActivity activity = getActivity();
+        if (activity == null) return;
+
         isScanning = false;
+        activity.runOnUiThread(() -> {
+            Context context = getContext();
+            if (context == null) return;
 
-        if (getActivity() == null) return;
-
-        getActivity().runOnUiThread(() -> {
-            AppDatabase db = AppDatabase.getInstance(requireContext());
+            AppDatabase db = AppDatabase.getInstance(context);
             Product existingProduct = db.productDAO().getProductByBarcode(rawValue);
 
-            // Wyznaczamy czas TTL: 1 minuta jeśli switch jest włączony, inaczej 1 rok
-            SharedPreferences prefs = requireContext().getSharedPreferences("app_prefs", Context.MODE_PRIVATE);
-            boolean isTestMode = prefs.getBoolean("test_ttl_enabled", false);
-            long ttlDuration = isTestMode ? (60 * 1000L) : (365L * 24 * 60 * 60 * 1000L);
+            long ttlDuration = 365L * 24 * 60 * 60 * 1000L; // 1 rok
             long currentTime = System.currentTimeMillis();
 
-            // 1. Sprawdzamy czy mamy świeży produkt w pamięci bazy
             if (existingProduct != null && (currentTime - existingProduct.getLastUpdated()) < ttlDuration) {
                 showProductAnalysisDialog(
                         existingProduct.getName(),
-                        existingProduct.isAllergic() ? List.of(existingProduct.getDetectedAllergens()) : List.of(),
+                        stringToList(existingProduct.getDetectedAllergens()),
                         existingProduct.getIngredients(),
                         existingProduct.getImageUrl(),
-                        false
+                        false,
+                        existingProduct.getBarcode(),
+                        jsonToList(existingProduct.getCategoriesTagsJson())
                 );
                 return;
             }
 
-            Client.getApiService().getProductByBarcode(rawValue).enqueue(new retrofit2.Callback<Response>() {
+            Client.getApiService().getProductByBarcode(rawValue).enqueue(new retrofit2.Callback<>() {
                 @Override
-                public void onResponse(retrofit2.Call<Response> call, retrofit2.Response<Response> response) {
+                public void onResponse(@NonNull retrofit2.Call<OffResponse> call, @NonNull retrofit2.Response<OffResponse> response) {
                     if (!isAdded() || getContext() == null) return;
 
                     if (response.isSuccessful() && response.body() != null && response.body().getStatus() == 1) {
-                        Request product = response.body().getProduct();
+                        OffProduct product = response.body().getProduct();
 
-                        // 1. Pobierz aktywne alergie z bazy Room
                         AppDatabase db = AppDatabase.getInstance(getContext());
                         List<Allergy> userActiveAllergies = db.allergyDAO().getActiveAllergies();
-                        List<String> productTags = product.getAllergensTags();
+                        List<String> productAllergensTags = product.getAllergensTags();
+                        List<String> productCategoriesTags = product.getCategoriesTags();
 
-                        // 2. Sprawdź, czy produkt zawiera którykolwiek z alergenów użytkownika
                         List<String> detectedAllergensNames = new ArrayList<>();
-                        if (productTags != null) {
+                        if (productAllergensTags != null) {
                             for (Allergy allergy : userActiveAllergies) {
-                                if (productTags.contains(allergy.getOffTag())) {
+                                if (productAllergensTags.contains(allergy.getOffTag())) {
                                     detectedAllergensNames.add(allergy.getDisplayName());
                                 }
                             }
@@ -148,45 +169,64 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
 
                         boolean isAllergic = !detectedAllergensNames.isEmpty();
                         String detectedStr = String.join(", ", detectedAllergensNames);
-                        String tagsJson = productTags != null ? productTags.toString() : "[]";
+                        String allergensJson = productAllergensTags != null ? String.join(", ", productAllergensTags) : "";
 
-                        // Zapisujemy/aktualizujemy produkt w bazie Room
+                        String categoriesJson = productCategoriesTags != null ? new Gson().toJson(productCategoriesTags) : "[]";
+
                         Product productToSave = new Product(
                                 rawValue,
                                 product.getProductName(),
                                 product.getIngredientsText(),
-                                tagsJson,
-                                currentTime, // Aktualna data skanowania
+                                allergensJson,
+                                categoriesJson,
+                                currentTime,
                                 isAllergic,
-                                false, // Nowe skanowanie — brak nowej wiadomości retroaktywnej
+                                false,
                                 detectedStr,
                                 product.getImageUrl()
                         );
                         db.productDAO().insertOrUpdate(productToSave);
-                        // 3. Pokaż spersonalizowany wynik
-                        showProductAnalysisDialog(product.getProductName(), detectedAllergensNames, product.getIngredientsText(), product.getImageUrl(), false);
-                    }
-                    else{
-                            // Jeśli produkt jest przestarzały, ale nie ma go w API / brak sieci, pokażemy stary produkt z ostrzeżeniem
-                            if (existingProduct != null) {
-                                showProductAnalysisDialog(existingProduct.getName(),
-                                        existingProduct.isAllergic() ? List.of(existingProduct.getDetectedAllergens()) : List.of(),
-                                        existingProduct.getIngredients(), existingProduct.getImageUrl(), true);
-                            } else {
-                                showErrorDialog(getString(R.string.product_not_found));
-                            }
+
+                        showProductAnalysisDialog(
+                                product.getProductName(),
+                                detectedAllergensNames,
+                                product.getIngredientsText(),
+                                product.getImageUrl(),
+                                false,
+                                rawValue,
+                                productCategoriesTags
+                        );
+                    } else {
+                        if (existingProduct != null) {
+                            showProductAnalysisDialog(
+                                    existingProduct.getName(),
+                                    stringToList(existingProduct.getDetectedAllergens()),
+                                    existingProduct.getIngredients(),
+                                    existingProduct.getImageUrl(),
+                                    true,
+                                    existingProduct.getBarcode(),
+                                    jsonToList(existingProduct.getCategoriesTagsJson())
+                            );
+                        } else {
+                            showErrorDialog(getString(R.string.product_not_found));
                         }
+                    }
                 }
 
                 @Override
-                public void onFailure(retrofit2.Call<Response> call, Throwable t) {
+                public void onFailure(@NonNull retrofit2.Call<OffResponse> call, @NonNull Throwable t) {
                     if (!isAdded() || getContext() == null) return;
 
                     if (existingProduct != null) {
-                        // W przypadku braku internetu używamy danych z bazy z ostrzeżeniem o braku odświeżenia
-                        showProductAnalysisDialog(existingProduct.getName(),
-                                existingProduct.isAllergic() ? List.of(existingProduct.getDetectedAllergens()) : List.of(),
-                                existingProduct.getIngredients(), existingProduct.getImageUrl(), true);
+                        showProductAnalysisDialog(
+                                existingProduct.getName(),
+                                stringToList(existingProduct.getDetectedAllergens()),
+                                existingProduct.getIngredients(),
+                                existingProduct.getImageUrl(),
+                                true,
+                                existingProduct.getBarcode(),
+                                jsonToList(existingProduct.getCategoriesTagsJson())
+                        );
                     } else {
                         showErrorDialog(getString(R.string.network_error));
                     }
@@ -195,7 +235,24 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
         });
     }
 
-    private void showProductAnalysisDialog(String title, List<String> detectedAllergens, String ingredients, String imageUrl, boolean isOutdatedWarning) {
+    private List<String> stringToList(String input) {
+        if (input == null || input.isEmpty()) return new ArrayList<>();
+        return new ArrayList<>(Arrays.asList(input.split(", ")));
+    }
+
+    private List<String> jsonToList(String jsonInput) {
+        if (jsonInput == null || jsonInput.isEmpty()) return new ArrayList<>();
+        try {
+            Type listType = new TypeToken<List<String>>(){}.getType();
+            List<String> list = new Gson().fromJson(jsonInput, listType);
+            return list != null ? list : new ArrayList<>();
+        } catch (Exception e) {
+            Log.e(TAG, "Error parsing categories JSON", e);
+            return new ArrayList<>();
+        }
+    }
+
+    private void showProductAnalysisDialog(String title, List<String> detectedAllergens, String ingredients, String imageUrl, boolean isOutdatedWarning, String barcode, List<String> categoriesTags) {
         if (!isAdded() || getContext() == null) return;
 
         androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(requireContext());
@@ -212,13 +269,22 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
             ivProduct.setImageResource(android.R.drawable.ic_menu_gallery);
         }
 
+        builder.setView(dialogView);
+
         if (isOutdatedWarning) {
             msg.append(getString(R.string.outdated_warning));
         }
 
-        if (!detectedAllergens.isEmpty()) {
+        boolean isAllergic = !detectedAllergens.isEmpty();
+
+        if (isAllergic) {
             msg.append(getString(R.string.detected_allergens_warning, String.join("\n- ", detectedAllergens)));
             builder.setIcon(android.R.drawable.ic_dialog_alert);
+
+            builder.setNeutralButton(getString(R.string.safe_alternative), (dialog, which) ->
+                RecommendationHelper.showHierarchicalRecommendationsDialog(requireContext(), barcode, categoriesTags, () -> isScanning = true)
+            );
+
         } else {
             msg.append(getString(R.string.product_safe));
             builder.setIcon(android.R.drawable.ic_dialog_info);
@@ -226,19 +292,17 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
 
         msg.append("\n\n").append(getString(R.string.ingredients_title)).append(ingredients);
         builder.setMessage(msg.toString());
+
         builder.setPositiveButton("OK", (dialog, which) -> isScanning = true);
         builder.setCancelable(false);
         builder.show();
     }
 
-    // Pomocnicze okno dialogowe z błędem
     private void showErrorDialog(String message) {
         new androidx.appcompat.app.AlertDialog.Builder(requireContext())
                 .setTitle(R.string.problem_product)
                 .setMessage(message)
-                .setPositiveButton(R.string.try_again, (dialog, which) -> {
-                    isScanning = true; // Odblokowujemy skaner
-                })
+                .setPositiveButton(R.string.try_again, (dialog, which) -> isScanning = true)
                 .setCancelable(false)
                 .show();
     }
@@ -246,6 +310,14 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        if (analyzeBarcode != null) {
+            analyzeBarcode.close();
+        }
         cameraExecutor.shutdown();
+
+        try {
+            ProcessCameraProvider cameraProvider = ProcessCameraProvider.getInstance(requireContext()).get();
+            cameraProvider.unbindAll();
+        } catch (Exception ignored) {}
     }
 }
