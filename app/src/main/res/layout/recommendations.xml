@@ -14,6 +14,7 @@
         android:textStyle="bold"
         android:layout_marginBottom="12dp" />
 
+    <!-- Loading spinner shown during API search -->
     <ProgressBar
         android:id="@+id/pbLoadingRecs"
         android:layout_width="wrap_content"
@@ -22,6 +23,7 @@
         android:visibility="visible"
         android:layout_margin="20dp" />
 
+    <!-- Error message shown when no safe alternatives are found -->
     <TextView
         android:id="@+id/tvNoRecs"
         android:layout_width="match_parent"
@@ -32,12 +34,14 @@
         android:visibility="gone"
         android:layout_margin="20dp" />
 
+    <!-- List of recommended safe alternatives -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rvRecommendations"
         android:layout_width="match_parent"
         android:layout_height="350dp"
         android:visibility="gone" />
 
+    <!-- Displays current search level/category in the hierarchy -->
     <TextView
         android:id="@+id/tvCurrentCategoryDisplay"
         android:layout_width="match_parent"

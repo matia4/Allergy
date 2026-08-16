@@ -11,6 +11,9 @@ import com.google.mlkit.vision.barcode.BarcodeScanning;
 import com.google.mlkit.vision.barcode.common.Barcode;
 import com.google.mlkit.vision.common.InputImage;
 
+/**
+ * Analyzer for processing camera frames to detect barcodes using ML Kit
+ */
 public class AnalyzeBarcode implements ImageAnalysis.Analyzer {
 
     private final BarcodeScanner scanner;
@@ -34,6 +37,10 @@ public class AnalyzeBarcode implements ImageAnalysis.Analyzer {
         scanner = BarcodeScanning.getClient(options);
     }
 
+    /**
+     * Main analysis method called for each camera frame.
+     * Extracts a bitmap from ImageProxy and passes it to ML Kit for scanning.
+     */
     @Override
     @ExperimentalGetImage
     public void analyze(@NonNull ImageProxy imageProxy) {
@@ -42,22 +49,25 @@ public class AnalyzeBarcode implements ImageAnalysis.Analyzer {
             return;
         }
 
+        // Prepare InputImage from MediaImage source
         InputImage inputImage = InputImage.fromMediaImage(
                 imageProxy.getImage(),
                 imageProxy.getImageInfo().getRotationDegrees()
         );
 
+        // Run ML Kit scanner
         scanner.process(inputImage)
                 .addOnSuccessListener(barcodes -> {
                     for (Barcode barcode : barcodes) {
                         String rawValue = barcode.getRawValue();
                         if (rawValue != null && !rawValue.isEmpty()) {
+                            // Notify listener on first successful detection
                             listener.onBarcodeScanned(rawValue);
                             return;
                         }
                     }
                 })
-                .addOnCompleteListener(task -> imageProxy.close());
+                .addOnCompleteListener(task -> imageProxy.close()); // Ensure frame is closed to avoid memory leak
     }
 
     public void close() {

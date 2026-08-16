@@ -11,6 +11,7 @@
     android:clickable="true"
     android:focusable="true">
 
+    <!-- Allergy name centered within the tile -->
     <TextView
         android:id="@+id/tvAllergyName"
         android:layout_width="match_parent"
@@ -19,6 +20,7 @@
         android:padding="8dp"
         android:text="@string/allergy_name"
         android:textAlignment="center"
+        android:textColor="@android:color/black"
         android:textSize="14sp"
         android:textStyle="bold" />
 

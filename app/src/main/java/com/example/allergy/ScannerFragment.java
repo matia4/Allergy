@@ -39,6 +39,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+/**
+ * Fragment for scanning product barcodes using the camera
+ */
 public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerListener {
 
     private static final String TAG = "ScannerFragment";
@@ -68,6 +71,7 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
         previewView = view.findViewById(R.id.previewView);
         cameraExecutor = Executors.newSingleThreadExecutor();
 
+        // Check for camera permission before starting the camera
         if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             startCamera();
         } else {
@@ -75,6 +79,9 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
         }
     }
 
+    /**
+     * Initializes CameraX and binds preview and analysis use cases to the lifecycle
+     */
     private void startCamera() {
         Context context = getContext();
         if (context == null) return;
@@ -85,14 +92,18 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
                 if (!isAdded()) return;
 
                 ProcessCameraProvider cameraProvider = cameraProviderFuture.get();
+                
+                // Configure Preview use case
                 Preview preview = new Preview.Builder().build();
                 preview.setSurfaceProvider(previewView.getSurfaceProvider());
 
+                // Configure resolution strategy for better barcode detection
                 ResolutionSelector resolutionSelector = new ResolutionSelector.Builder()
                         .setResolutionStrategy(new ResolutionStrategy(new Size(1280, 720),
                                 ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER))
                         .build();
 
+                // Configure ImageAnalysis use case with AnalyzeBarcode
                 ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
                         .setResolutionSelector(resolutionSelector)
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
@@ -114,6 +125,10 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
         }, ContextCompat.getMainExecutor(context));
     }
 
+    /**
+     * Callback from AnalyzeBarcode when a barcode is detected.
+     * Checks local database first, then falls back to Open Food Facts API.
+     */
     @Override
     public void onBarcodeScanned(String rawValue) {
         if (!isScanning || !isAdded()) return;
@@ -122,18 +137,19 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
         if (activity == null) return;
 
         isScanning = false;
-        activity.runOnUiThread(() -> {
+        
+        AppDatabase.databaseWriteExecutor.execute(() -> {
             Context context = getContext();
             if (context == null) return;
 
             AppDatabase db = AppDatabase.getInstance(context);
             Product existingProduct = db.productDAO().getProductByBarcode(rawValue);
 
-            long ttlDuration = 365L * 24 * 60 * 60 * 1000L; // 1 rok
+            long ttlDuration = 365L * 24 * 60 * 60 * 1000L; // 1 year
             long currentTime = System.currentTimeMillis();
 
             if (existingProduct != null && (currentTime - existingProduct.getLastUpdated()) < ttlDuration) {
-                showProductAnalysisDialog(
+                activity.runOnUiThread(() -> showProductAnalysisDialog(
                         existingProduct.getName(),
                         stringToList(existingProduct.getDetectedAllergens()),
                         existingProduct.getIngredients(),
@@ -141,7 +157,7 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
                         false,
                         existingProduct.getBarcode(),
                         jsonToList(existingProduct.getCategoriesTagsJson())
-                );
+                ));
                 return;
             }
 
@@ -153,50 +169,73 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
                     if (response.isSuccessful() && response.body() != null && response.body().getStatus() == 1) {
                         OffProduct product = response.body().getProduct();
 
-                        AppDatabase db = AppDatabase.getInstance(getContext());
-                        List<Allergy> userActiveAllergies = db.allergyDAO().getActiveAllergies();
-                        List<String> productAllergensTags = product.getAllergensTags();
-                        List<String> productCategoriesTags = product.getCategoriesTags();
+                        AppDatabase.databaseWriteExecutor.execute(() -> {
+                            AppDatabase dbInternal = AppDatabase.getInstance(requireContext());
+                            List<Allergy> userActiveAllergies = dbInternal.allergyDAO().getActiveAllergies();
+                            List<String> productAllergensTags = product.getAllergensTags();
+                            List<String> productCategoriesTags = product.getCategoriesTags();
 
-                        List<String> detectedAllergensNames = new ArrayList<>();
-                        if (productAllergensTags != null) {
-                            for (Allergy allergy : userActiveAllergies) {
-                                if (productAllergensTags.contains(allergy.getOffTag())) {
-                                    detectedAllergensNames.add(allergy.getDisplayName());
+                            List<String> detectedAllergensNames = new ArrayList<>();
+                            if (productAllergensTags != null) {
+                                for (Allergy allergy : userActiveAllergies) {
+                                    if (productAllergensTags.contains(allergy.getOffTag())) {
+                                        detectedAllergensNames.add(allergy.getDisplayName());
+                                    }
                                 }
                             }
-                        }
 
-                        boolean isAllergic = !detectedAllergensNames.isEmpty();
-                        String detectedStr = String.join(", ", detectedAllergensNames);
-                        String allergensJson = productAllergensTags != null ? String.join(", ", productAllergensTags) : "";
+                            String detectedStr = String.join(", ", detectedAllergensNames);
+                            String allergensJson = productAllergensTags != null ? String.join(", ", productAllergensTags) : "";
+                            String categoriesJson = productCategoriesTags != null ? new Gson().toJson(productCategoriesTags) : "[]";
 
-                        String categoriesJson = productCategoriesTags != null ? new Gson().toJson(productCategoriesTags) : "[]";
+                            Product productToSave = new Product(
+                                    rawValue,
+                                    product.getProductName(),
+                                    product.getIngredientsText(),
+                                    allergensJson,
+                                    categoriesJson,
+                                    currentTime,
+                                    !detectedAllergensNames.isEmpty(),
+                                    false,
+                                    detectedStr,
+                                    product.getImageUrl()
+                            );
+                            dbInternal.productDAO().insertOrUpdate(productToSave);
 
-                        Product productToSave = new Product(
-                                rawValue,
-                                product.getProductName(),
-                                product.getIngredientsText(),
-                                allergensJson,
-                                categoriesJson,
-                                currentTime,
-                                isAllergic,
-                                false,
-                                detectedStr,
-                                product.getImageUrl()
-                        );
-                        db.productDAO().insertOrUpdate(productToSave);
-
-                        showProductAnalysisDialog(
-                                product.getProductName(),
-                                detectedAllergensNames,
-                                product.getIngredientsText(),
-                                product.getImageUrl(),
-                                false,
-                                rawValue,
-                                productCategoriesTags
-                        );
+                            activity.runOnUiThread(() -> showProductAnalysisDialog(
+                                    product.getProductName(),
+                                    detectedAllergensNames,
+                                    product.getIngredientsText(),
+                                    product.getImageUrl(),
+                                    false,
+                                    rawValue,
+                                    productCategoriesTags
+                            ));
+                        });
                     } else {
+                        activity.runOnUiThread(() -> {
+                            if (existingProduct != null) {
+                                showProductAnalysisDialog(
+                                        existingProduct.getName(),
+                                        stringToList(existingProduct.getDetectedAllergens()),
+                                        existingProduct.getIngredients(),
+                                        existingProduct.getImageUrl(),
+                                        true,
+                                        existingProduct.getBarcode(),
+                                        jsonToList(existingProduct.getCategoriesTagsJson())
+                                );
+                            } else {
+                                showErrorDialog(getString(R.string.product_not_found));
+                            }
+                        });
+                    }
+                }
+
+                @Override
+                public void onFailure(@NonNull retrofit2.Call<OffResponse> call, @NonNull Throwable t) {
+                    if (!isAdded() || getContext() == null) return;
+
+                    activity.runOnUiThread(() -> {
                         if (existingProduct != null) {
                             showProductAnalysisDialog(
                                     existingProduct.getName(),
@@ -208,28 +247,9 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
                                     jsonToList(existingProduct.getCategoriesTagsJson())
                             );
                         } else {
-                            showErrorDialog(getString(R.string.product_not_found));
+                            showErrorDialog(getString(R.string.network_error));
                         }
-                    }
-                }
-
-                @Override
-                public void onFailure(@NonNull retrofit2.Call<OffResponse> call, @NonNull Throwable t) {
-                    if (!isAdded() || getContext() == null) return;
-
-                    if (existingProduct != null) {
-                        showProductAnalysisDialog(
-                                existingProduct.getName(),
-                                stringToList(existingProduct.getDetectedAllergens()),
-                                existingProduct.getIngredients(),
-                                existingProduct.getImageUrl(),
-                                true,
-                                existingProduct.getBarcode(),
-                                jsonToList(existingProduct.getCategoriesTagsJson())
-                        );
-                    } else {
-                        showErrorDialog(getString(R.string.network_error));
-                    }
+                    });
                 }
             });
         });
@@ -245,13 +265,16 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
         try {
             Type listType = new TypeToken<List<String>>(){}.getType();
             List<String> list = new Gson().fromJson(jsonInput, listType);
-            return list != null ? list : new ArrayList<>();
+            return java.util.Objects.requireNonNullElseGet(list, ArrayList::new);
         } catch (Exception e) {
             Log.e(TAG, "Error parsing categories JSON", e);
             return new ArrayList<>();
         }
     }
 
+    /**
+     * Shows a detailed analysis dialog for a product, highlighting allergens.
+     */
     private void showProductAnalysisDialog(String title, List<String> detectedAllergens, String ingredients, String imageUrl, boolean isOutdatedWarning, String barcode, List<String> categoriesTags) {
         if (!isAdded() || getContext() == null) return;
 
@@ -260,6 +283,7 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
 
         StringBuilder msg = new StringBuilder();
 
+        // Inflate custom dialog layout to show product image
         View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_product_result, null);
 
         ImageView ivProduct = dialogView.findViewById(R.id.ivDialogProductImage);
@@ -277,10 +301,12 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
 
         boolean isAllergic = !detectedAllergens.isEmpty();
 
+        // Warning logic if user's allergens are detected
         if (isAllergic) {
             msg.append(getString(R.string.detected_allergens_warning, String.join("\n- ", detectedAllergens)));
             builder.setIcon(android.R.drawable.ic_dialog_alert);
 
+            // Button to trigger alternative product search
             builder.setNeutralButton(getString(R.string.safe_alternative), (dialog, which) ->
                 RecommendationHelper.showHierarchicalRecommendationsDialog(requireContext(), barcode, categoriesTags, () -> isScanning = true)
             );

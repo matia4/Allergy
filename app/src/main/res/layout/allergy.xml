@@ -7,6 +7,7 @@
     android:orientation="horizontal"
     android:padding="16dp">
 
+    <!-- Allergy name display -->
     <TextView
         android:id="@+id/tvAllergyName"
         android:layout_width="0dp"
@@ -19,6 +20,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
+    <!-- Switch for activating/deactivating the allergy -->
     <com.google.android.material.materialswitch.MaterialSwitch
         android:id="@+id/switchAllergy"
         android:layout_width="wrap_content"

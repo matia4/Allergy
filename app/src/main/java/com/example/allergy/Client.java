@@ -3,10 +3,14 @@ package com.example.allergy;
 import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
 
+/**
+ * Retrofit client for Open Food Facts API
+ */
 public class Client {
     private static final String BASE_URL = "https://world.openfoodfacts.org/";
     private static Retrofit retrofit = null;
 
+    //Provides the Retrofit implementation for API calls
     public static API getApiService() {
         if (retrofit == null) {
             retrofit = new Retrofit.Builder()

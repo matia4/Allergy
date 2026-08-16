@@ -15,6 +15,7 @@ app:cardElevation="3dp">
     android:padding="12dp"
     android:gravity="center_vertical">
 
+    <!-- Thumbnail of the alternative product -->
     <ImageView
         android:id="@+id/ivRecImage"
         android:layout_width="60dp"
@@ -29,6 +30,7 @@ app:cardElevation="3dp">
         android:orientation="vertical"
         android:layout_marginStart="12dp">
 
+        <!-- Name of the safe alternative product -->
         <TextView
             android:id="@+id/tvRecName"
             android:layout_width="wrap_content"
@@ -38,6 +40,7 @@ app:cardElevation="3dp">
             android:textStyle="bold"
             android:textColor="#212121" />
 
+        <!-- Status badge confirming it's a safe alternative -->
         <TextView
             android:id="@+id/tvRecBadge"
             android:layout_width="wrap_content"

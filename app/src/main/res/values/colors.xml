@@ -9,4 +9,7 @@
     <color name="green_safe_text">#1B5E20</color>
     <color name="product_image_placeholder">#EEEEEE</color>
     <color name="alert_badge_text">#D32F2F</color>
+    <color name="light_green_bg">#E8F5E9</color>
+    <color name="dark_green_tile">#2E7D32</color>
+    <color name="darker_green_nav">#C8E6C9</color>
 </resources>

@@ -10,6 +10,9 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
 import java.util.List;
 
+/**
+ * Adapter for displaying recommended product alternatives
+ */
 public class RecommendationAdapter extends RecyclerView.Adapter<RecommendationAdapter.ViewHolder> {
 
     public interface OnItemClickListener {
@@ -35,8 +38,10 @@ public class RecommendationAdapter extends RecyclerView.Adapter<RecommendationAd
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         OffProduct product = productList.get(position);
 
-        holder.tvName.setText(product.getProductName() != null ? product.getProductName() : "Produkt bez nazwy");
+        // Display product name or default fallback
+        holder.tvName.setText(product.getProductName() != null ? product.getProductName() : "Unnamed product");
 
+        // Load product image using Glide
         if (product.getImageUrl() != null && !product.getImageUrl().isEmpty()) {
             Glide.with(holder.itemView.getContext())
                     .load(product.getImageUrl())

@@ -18,12 +18,15 @@ import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
+/**
+ * Helper class for finding safe product alternatives based on categories
+ */
 public class RecommendationHelper {
     private static final String TAG = "RecommendationHelper";
 
     /**
-     * Główna metoda wywołująca hierarchiczne wyszukiwanie alternatyw.
-     * Działa dla skanowania (new/cached) i historii.
+     * Main method calling hierarchical search for alternatives.
+     * Works for both new scans and history.
      */
     public static void showHierarchicalRecommendationsDialog(Context context, String currentBarcode, List<String> categoriesTags, Runnable onDismissListener) {
         if (categoriesTags == null || categoriesTags.isEmpty()) {
@@ -56,22 +59,27 @@ public class RecommendationHelper {
 
         dialog.show();
 
-        AppDatabase db = AppDatabase.getInstance(context);
-        List<Allergy> activeAllergies = db.allergyDAO().getActiveAllergies();
-
-        performSearchFallback(context, currentBarcode, categoriesTags, categoriesTags.size() - 1,
-                activeAllergies, pbLoading, tvNoRecs, tvCurrentCategory, rvRecs);
+        AppDatabase.databaseWriteExecutor.execute(() -> {
+            List<Allergy> activeAllergies = AppDatabase.getInstance(context).allergyDAO().getActiveAllergies();
+            
+            ((android.app.Activity)context).runOnUiThread(() -> 
+                performSearchFallback(context, currentBarcode, categoriesTags, categoriesTags.size() - 1,
+                        activeAllergies, pbLoading, tvNoRecs, tvCurrentCategory, rvRecs)
+            );
+        });
     }
 
     /**
-     * Rekurencyjna funkcja wyszukiwania z fallbackiem.
-     * categoryIndex: indeks w liście categoriesTags, który aktualnie sprawdzamy.
+     * Recursive search function with fallback.
+     * Starts from the most specific category and moves to broader ones if no safe alternatives are found.
+     * categoryIndex: index in categoriesTags list currently being checked.
      */
     private static void performSearchFallback(Context context, String barcode, List<String> categoriesTags,
                                               int categoryIndex, List<Allergy> activeAllergies,
                                               ProgressBar pbLoading, TextView tvNoRecs,
                                               TextView tvCurrentCategory, RecyclerView rvRecs) {
 
+        // Base case: all categories exhausted
         if (categoryIndex < 0) {
             pbLoading.setVisibility(View.GONE);
             tvNoRecs.setText(R.string.no_alternatives_found);
@@ -83,6 +91,7 @@ public class RecommendationHelper {
         String targetTag = categoriesTags.get(categoryIndex);
         Log.d(TAG, "Searching for alternatives in category: " + targetTag);
 
+        // UI update for current search status
         String categoryReadable = targetTag.replace("en:", "").replace("-", " ");
         tvCurrentCategory.setText(context.getString(R.string.category_label, categoryReadable, categoryIndex + 1, categoriesTags.size()));
         tvCurrentCategory.setVisibility(View.VISIBLE);
@@ -90,7 +99,7 @@ public class RecommendationHelper {
         rvRecs.setVisibility(View.GONE);
         tvNoRecs.setVisibility(View.GONE);
 
-        // Zapytanie do API z ograniczeniem do Polski
+        // API Query limited to Poland to ensure local availability
         Client.getApiService().searchProductsByCategory("categories", "contains", targetTag, "countries", "contains", "en:poland")
                 .enqueue(new Callback<>() {
                     @Override
@@ -98,14 +107,16 @@ public class RecommendationHelper {
                         if (response.isSuccessful() && response.body() != null && response.body().getProducts() != null) {
                             List<OffProduct> rawProducts = response.body().getProducts();
 
-                            // Podwójny filtr: bezpieczeństwo alergenów ORAZ weryfikacja dystrybucji w Polsce
+                            // Filter results to ensure they are safe for the user's active allergies
                             List<OffProduct> safeProducts = filterSafeProducts(rawProducts, barcode, activeAllergies);
 
                             if (safeProducts.isEmpty()) {
+                                // Fallback: try search in the next broader category
                                 Log.d(TAG, "No safe products in " + targetTag + ". Trying broader category.");
                                 performSearchFallback(context, barcode, categoriesTags, categoryIndex - 1,
                                         activeAllergies, pbLoading, tvNoRecs, tvCurrentCategory, rvRecs);
                             } else {
+                                // Display safe alternatives found
                                 pbLoading.setVisibility(View.GONE);
                                 rvRecs.setVisibility(View.VISIBLE);
                                 rvRecs.setAdapter(new RecommendationAdapter(safeProducts, selectedProduct ->
@@ -118,6 +129,7 @@ public class RecommendationHelper {
                                 ));
                             }
                         } else {
+                            // Fallback on non-successful API response
                             performSearchFallback(context, barcode, categoriesTags, categoryIndex - 1,
                                     activeAllergies, pbLoading, tvNoRecs, tvCurrentCategory, rvRecs);
                         }
@@ -133,47 +145,52 @@ public class RecommendationHelper {
                 });
     }
 
+    /**
+     * Filters a list of products based on safety criteria.
+     * Excludes the current product, unnamed products, and those containing active allergens.
+     */
     private static List<OffProduct> filterSafeProducts(List<OffProduct> rawProducts, String currentBarcode, List<Allergy> activeAllergies) {
         List<OffProduct> safeProducts = new ArrayList<>();
         for (OffProduct p : rawProducts) {
-            // 1. Odrzucamy aktualnie skanowany produkt
+            // 1. Skip current product
             if (Objects.equals(p.getCode(), currentBarcode)) continue;
 
-            // 2. Odrzucamy produkty bez nazwy
+            // 2. Skip unnamed products
             if (p.getProductName() == null || p.getProductName().trim().isEmpty()) continue;
 
-            // 3. Odrzucamy produkty, które NIE MAJĄ podanego składu
+            // 3. Skip products without ingredients
             if (p.getIngredientsText() == null || p.getIngredientsText().trim().isEmpty()) continue;
 
-            // 4. Sprawdzamy czy produkt jest sprzedawany w Polsce
+            // 4. Verify distribution in Poland
             if (!isSoldInPoland(p)) continue;
 
             if (p.getIngredientsText().trim().length() < 20) continue;
 
-            // 5. Sprawdzamy bezpieczeństwo pod kątem alergenów
-            boolean isSafe = true;
-            for (Allergy allergy : activeAllergies) {
-                boolean hasTag = p.getAllergensTags() != null && p.getAllergensTags().contains(allergy.getOffTag());
-                boolean hasText = hasAllergenInText(p.getIngredientsText(), allergy);
-
-                if (hasTag || hasText) {
-                    isSafe = false;
-                    break;
-                }
-            }
-
-            if (isSafe) {
+            // 5. Verify allergen safety
+            if (isProductSafe(p, activeAllergies)) {
                 safeProducts.add(p);
             }
         }
         return safeProducts;
     }
 
+    private static boolean isProductSafe(OffProduct p, List<Allergy> activeAllergies) {
+        for (Allergy allergy : activeAllergies) {
+            boolean hasTag = p.getAllergensTags() != null && p.getAllergensTags().contains(allergy.getOffTag());
+            boolean hasText = hasAllergenInText(p.getIngredientsText(), allergy);
+
+            if (hasTag || hasText) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
-     * Pomocnicza weryfikacja czy produkt posiada tag dystrybucji w Polsce
+     * Verify if product has a distribution tag for Poland
      */
     private static boolean isSoldInPoland(OffProduct p) {
-        // Sprawdzenie po listach tagów krajów (np. "en:poland", "poland")
+        // Check country tags (e.g., "en:poland", "poland")
         if (p.getCountriesTags() != null && !p.getCountriesTags().isEmpty()) {
             for (String tag : p.getCountriesTags()) {
                 if ("en:poland".equalsIgnoreCase(tag) || "poland".equalsIgnoreCase(tag) || "polska".equalsIgnoreCase(tag)) {
@@ -182,13 +199,13 @@ public class RecommendationHelper {
             }
         }
 
-        // Zapasowe sprawdzenie ciągu tekstowego w polu countries
+        // Fallback check in countries string
         if (p.getCountries() != null && !p.getCountries().isEmpty()) {
             String lower = p.getCountries().toLowerCase();
             return lower.contains("poland") || lower.contains("polska") || lower.contains("pl");
         }
 
-        // Jeśli API wygenerowało wynik przy filtrze "en:poland", ale dane szczegółowe są puste, traktujemy jako dopuszczony
+        // If API returned result with "en:poland" filter but details are empty, assume allowed
         return p.getCountriesTags() == null && p.getCountries() == null;
     }
 
@@ -198,18 +215,60 @@ public class RecommendationHelper {
         String textLower = ingredientsText.toLowerCase();
 
         switch (allergy.getOffTag()) {
-            case "en:milk":
-                return textLower.contains("mleko") || textLower.contains("laktoz") ||
-                        textLower.contains("serwatk") || textLower.contains("masło") || textLower.contains("milk");
             case "en:gluten":
                 return textLower.contains("pszen") || textLower.contains("gluten") ||
-                        textLower.contains("żyto") || textLower.contains("jęczmień") || textLower.contains("wheat");
-            case "en:nuts":
-                return textLower.contains("orzech") || textLower.contains("migdał") || textLower.contains("hazelnut");
+                        textLower.contains("żyto") || textLower.contains("jęczmień") ||
+                        textLower.contains("owies") || textLower.contains("orkisz") || textLower.contains("wheat");
+
+            case "en:milk":
+                return textLower.contains("mleko") || textLower.contains("laktoz") ||
+                        textLower.contains("serwatk") || textLower.contains("masło") ||
+                        textLower.contains("śmietan") || textLower.contains("kazein") || textLower.contains("milk");
+
             case "en:eggs":
-                return textLower.contains("jaj") || textLower.contains("egg");
+                return textLower.contains("jaj") || textLower.contains("żółtko") ||
+                        textLower.contains("białko jaja") || textLower.contains("egg");
+
+            case "en:nuts":
+                return textLower.contains("orzech") || textLower.contains("migdał") ||
+                        textLower.contains("laskow") || textLower.contains("włosk") ||
+                        textLower.contains("nerkowiec") || textLower.contains("pistac") || textLower.contains("hazelnut");
+
+            case "en:peanuts":
+                return textLower.contains("arachid") || textLower.contains("fistaszk") ||
+                        textLower.contains("orzechy ziemne") || textLower.contains("peanut");
+
             case "en:soya":
                 return textLower.contains("soj") || textLower.contains("soy");
+
+            case "en:fish":
+                return textLower.contains("ryb") || textLower.contains("łosoś") ||
+                        textLower.contains("dorsz") || textLower.contains("tuńczyk") || textLower.contains("fish");
+
+            case "en:crustaceans":
+                return textLower.contains("krewetk") || textLower.contains("krab") ||
+                        textLower.contains("homar") || textLower.contains("rak") || textLower.contains("shrimp");
+
+            case "en:molluscs":
+                return textLower.contains("małże") || textLower.contains("ostryg") ||
+                        textLower.contains("ośmiornic") || textLower.contains("kalmar");
+
+            case "en:celery":
+                return textLower.contains("seler") || textLower.contains("celery");
+
+            case "en:mustard":
+                return textLower.contains("gorczyc") || textLower.contains("musztard") || textLower.contains("mustard");
+
+            case "en:sesame-seeds":
+                return textLower.contains("sezam") || textLower.contains("sesame");
+
+            case "en:sulphur-dioxide-and-sulphites":
+                return textLower.contains("siarczyn") || textLower.contains("dwutlenek siarki") ||
+                        textLower.contains("e220") || textLower.contains("e224") || textLower.contains("e228");
+
+            case "en:lupin":
+                return textLower.contains("łubin") || textLower.contains("lupin");
+
             default:
                 if (allergy.getDisplayName() != null) {
                     return textLower.contains(allergy.getDisplayName().toLowerCase());

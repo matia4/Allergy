@@ -8,16 +8,16 @@ import androidx.room.PrimaryKey;
 public class Product {
     @PrimaryKey
     @NonNull
-    private String barcode;
-    private String name;
-    private String ingredients;
-    private String allergensTagsJson; // Przechowujemy tagi z API jako ciąg tekstowy
-    private String categoriesTagsJson; // Przechowujemy tagi kategorii z API
-    private long lastUpdated;         // Timestamp w milisekundach
-    private boolean isAllergic;       // Czy zawiera alergen użytkownika
-    private boolean isNewAlert;       // Flaga retroaktywnego alertu
-    private String detectedAllergens; // Sformatowana nazwa wykrytych alergii
-    private String imageUrl;
+    private String barcode; // Unique barcode ID
+    private String name;    // Product name
+    private String ingredients; // Full list of ingredients
+    private String allergensTagsJson; // API tags stored as text for simple persistence
+    private String categoriesTagsJson; // Category tags from API
+    private long lastUpdated;         // Timestamp of the last scan/fetch
+    private boolean isAllergic;       // Result of allergen analysis
+    private boolean isNewAlert;       // Flag indicating a retroactive alert
+    private String detectedAllergens; // User-friendly names of detected allergens
+    private String imageUrl; // URL to the product image
 
     public Product(@NonNull String barcode, String name, String ingredients,
                    String allergensTagsJson, String categoriesTagsJson, long lastUpdated,
@@ -34,6 +34,7 @@ public class Product {
         this.imageUrl = imageUrl;
     }
 
+    // Getters and Setters
     @NonNull public String getBarcode() { return barcode; }
     public String getName() { return name; }
     public String getIngredients() { return ingredients; }

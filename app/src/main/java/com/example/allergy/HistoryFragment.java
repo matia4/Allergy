@@ -15,8 +15,10 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.snackbar.Snackbar;
 
 import java.util.List;
-import java.util.concurrent.Executors;
 
+/**
+ * Fragment displaying the history of scanned products
+ */
 public class HistoryFragment extends Fragment {
 
     private RecyclerView recyclerView;
@@ -39,10 +41,11 @@ public class HistoryFragment extends Fragment {
 
         loadHistory();
 
+        // Configure swipe-to-delete functionality for history items
         ItemTouchHelper.SimpleCallback simpleItemTouchCallback = new ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT | ItemTouchHelper.RIGHT) {
             @Override
             public boolean onMove(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder, @NonNull RecyclerView.ViewHolder target) {
-                return false; // Nie obsługujemy zmiany kolejności (drag & drop)
+                return false;
             }
 
             @Override
@@ -52,26 +55,22 @@ public class HistoryFragment extends Fragment {
                 
                 Product productToDelete = adapter.getProductAt(position);
 
-                // 1. Usuwamy lokalnie z listy w adapterze, żeby UI zareagowało natychmiast
+                // 1. Remove locally from adapter list for immediate UI response
                 adapter.removeProductAt(position);
 
-                // 2. Usuwamy z bazy danych Room w osobnym wątku
-                Executors.newSingleThreadExecutor().execute(() -> {
-                    db.productDAO().deleteProduct(productToDelete);
-                });
+                // 2. Remove from Room database in background using the shared executor
+                AppDatabase.databaseWriteExecutor.execute(() -> db.productDAO().deleteProduct(productToDelete));
 
-                // 3. Pokazujemy powiadomienie Snackbar z opcją "Cofnij"
+                // 3. Show Snackbar with "Undo" option to allow restoring the deleted product
                 Snackbar.make(recyclerView, R.string.product_deleted, Snackbar.LENGTH_LONG)
                         .setAction(R.string.undo, v -> {
-                            // Przywracamy produkt w tle
-                            Executors.newSingleThreadExecutor().execute(() -> {
+                            // Restore product in database
+                            AppDatabase.databaseWriteExecutor.execute(() -> {
                                 db.productDAO().insertOrUpdate(productToDelete);
 
-                                // Odświeżamy listę na wątku UI
+                                // Restore locally in adapter on the UI thread
                                 if (isAdded()) {
-                                    requireActivity().runOnUiThread(() -> {
-                                        adapter.addProductAt(position, productToDelete);
-                                    });
+                                    requireActivity().runOnUiThread(() -> adapter.addProductAt(position, productToDelete));
                                 }
                             });
                         })
@@ -83,8 +82,11 @@ public class HistoryFragment extends Fragment {
         itemTouchHelper.attachToRecyclerView(recyclerView);
     }
 
+    /**
+     * Loads the scan history from the database asynchronously.
+     */
     private void loadHistory() {
-        Executors.newSingleThreadExecutor().execute(() -> {
+        AppDatabase.databaseWriteExecutor.execute(() -> {
             List<Product> products = db.productDAO().getAllProducts();
             if (isAdded()) {
                 requireActivity().runOnUiThread(() -> {
@@ -92,16 +94,16 @@ public class HistoryFragment extends Fragment {
                         Context context = getContext();
                         if (context == null) return;
 
-                        // Po kliknięciu usuwamy wykrzyknik "nowy alert" i zapisujemy stan
+                        // Click removes "new alert" status and saves state
                         if (product.isNewAlert()) {
                             product.setNewAlert(false);
-                            Executors.newSingleThreadExecutor().execute(() -> {
+                            AppDatabase.databaseWriteExecutor.execute(() -> {
                                 db.productDAO().update(product);
-                                loadHistory(); // Odświeżamy listę
+                                loadHistory(); // Refresh list
                             });
                         }
 
-                        // Wyświetlamy szczegóły składu
+                        // Display ingredients details
                         new androidx.appcompat.app.AlertDialog.Builder(context)
                                 .setTitle(product.getName())
                                 .setMessage(getString(R.string.ingredients_title) + product.getIngredients())

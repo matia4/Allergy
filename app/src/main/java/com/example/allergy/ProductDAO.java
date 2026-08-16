@@ -10,29 +10,23 @@ import java.util.List;
 
 @Dao
 public interface ProductDAO {
+    //Retrieve all historical scans, sorted by most recent first
     @Query("SELECT * FROM products ORDER BY lastUpdated DESC")
     List<Product> getAllProducts();
 
+    //Find a specific product in the cache by barcode
     @Query("SELECT * FROM products WHERE barcode = :barcode LIMIT 1")
     Product getProductByBarcode(String barcode);
 
+    //Cache a new product or update existing entry
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     void insertOrUpdate(Product product);
 
-    @Update
-    void updateAll(List<Product> products);
-
+    //Update a single product's state
     @Update
     void update(Product product);
 
+    //Remove a product from history
     @Delete
     void deleteProduct(Product product);
-
-    // 2. Alternatywa: Usuwanie po kodzie kreskowym
-    @Query("DELETE FROM products WHERE barcode = :barcode")
-    void deleteByBarcode(String barcode);
-
-    // 3. OPCJONALNIE: Wyczyszczenie całej historii
-    @Query("DELETE FROM products")
-    void deleteAllProducts();
 }

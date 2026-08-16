@@ -6,10 +6,14 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.card.MaterialCardView;
 import java.util.List;
 
+/**
+ * Adapter for displaying allergy tiles in a grid
+ */
 public class AllergyTileAdapter extends RecyclerView.Adapter<AllergyTileAdapter.ViewHolder> {
 
     public interface OnTileClickListener {
@@ -24,7 +28,7 @@ public class AllergyTileAdapter extends RecyclerView.Adapter<AllergyTileAdapter.
         this.listener = listener;
     }
 
-    // Metoda do aktualizacji listy po sortowaniu
+    // Update list after sorting
     public void updateList(List<Allergy> newList) {
         this.allergyList = newList;
         notifyDataSetChanged();
@@ -42,13 +46,13 @@ public class AllergyTileAdapter extends RecyclerView.Adapter<AllergyTileAdapter.
         Allergy allergy = allergyList.get(position);
         holder.tvAllergyName.setText(allergy.getDisplayName());
 
-        // Zmiana koloru w zależności od stanu (zaznaczone / niezaznaczone)
+        // Update tile visual state based on whether the allergy is active
         if (allergy.isActive()) {
-            holder.cardAllergy.setCardBackgroundColor(Color.parseColor("#1E88E5")); // Niebieski aktywny
+            holder.cardAllergy.setCardBackgroundColor(ContextCompat.getColor(holder.itemView.getContext(), R.color.dark_green_tile)); // Active state
             holder.tvAllergyName.setTextColor(Color.WHITE);
         } else {
-            holder.cardAllergy.setCardBackgroundColor(Color.WHITE); // Biały nieaktywny
-            holder.tvAllergyName.setTextColor(Color.parseColor("#424242"));
+            holder.cardAllergy.setCardBackgroundColor(Color.WHITE); // Inactive state
+            holder.tvAllergyName.setTextColor(Color.BLACK);
         }
 
         holder.itemView.setOnClickListener(v -> listener.onTileClick(allergy, position));
@@ -59,7 +63,7 @@ public class AllergyTileAdapter extends RecyclerView.Adapter<AllergyTileAdapter.
         return allergyList.size();
     }
 
-    static class ViewHolder extends RecyclerView.ViewHolder {
+    public static class ViewHolder extends RecyclerView.ViewHolder {
         MaterialCardView cardAllergy;
         TextView tvAllergyName;
 

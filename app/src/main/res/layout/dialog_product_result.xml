@@ -6,6 +6,7 @@
     android:layout_height="wrap_content"
     android:padding="16dp">
 
+    <!-- Large product image displayed in the analysis dialog -->
     <ImageView
         android:id="@+id/ivDialogProductImage"
         android:layout_width="120dp"

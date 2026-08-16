@@ -10,6 +10,9 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.materialswitch.MaterialSwitch;
 import java.util.List;
 
+/**
+ * Adapter for displaying a list of allergies with toggles
+ */
 public class AllergiesAdapter extends RecyclerView.Adapter<AllergiesAdapter.AllergyViewHolder> {
 
     private final List<Allergy> allergyList;
@@ -36,9 +39,11 @@ public class AllergiesAdapter extends RecyclerView.Adapter<AllergiesAdapter.Alle
         Allergy allergy = allergyList.get(position);
         holder.tvName.setText(allergy.getDisplayName());
 
+        // Temporarily remove listener to prevent trigger during initialization
         holder.switchAllergy.setOnCheckedChangeListener(null);
         holder.switchAllergy.setChecked(allergy.isActive());
 
+        // Re-attach listener to handle user changes
         holder.switchAllergy.setOnCheckedChangeListener((buttonView, isChecked) -> {
             allergy.setActive(isChecked);
             listener.onAllergyChanged(allergy);
@@ -48,6 +53,7 @@ public class AllergiesAdapter extends RecyclerView.Adapter<AllergiesAdapter.Alle
     @Override
     public int getItemCount() { return allergyList.size(); }
 
+    //ViewHolder class for individual allergy items
     static class AllergyViewHolder extends RecyclerView.ViewHolder {
         final TextView tvName;
         final MaterialSwitch switchAllergy;

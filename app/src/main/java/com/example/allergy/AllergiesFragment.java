@@ -11,9 +11,12 @@ import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Fragment for managing user allergies
+ */
 public class AllergiesFragment extends Fragment {
     private RecyclerView recyclerView;
     private AllergyTileAdapter adapter;
@@ -35,33 +38,13 @@ public class AllergiesFragment extends Fragment {
         recyclerView = view.findViewById(R.id.recyclerViewAllergies);
         SearchView searchView = view.findViewById(R.id.searchViewAllergy);
 
-        // Ustawiamy Grid na 2 kolumny kafelków
+        // Set up Grid with 2 columns
         layoutManager = new GridLayoutManager(requireContext(), 2);
         recyclerView.setLayoutManager(layoutManager);
 
-        loadAndSortAllergies();
+        loadAllergies();
 
-        // 1. Logika kliknięcia w kafelek
-        adapter = new AllergyTileAdapter(allergyList, (allergy, position) -> {
-            // Odwracamy stan zaznaczenia
-            allergy.setActive(!allergy.isActive());
-
-            // Zapisujemy w bazie w tle
-            new Thread(() -> db.allergyDAO().update(allergy)).start();
-
-            // Sortujemy listę na nowo i odświeżamy widok
-            sortAllergies();
-            adapter.updateList(allergyList);
-
-            // Przewijamy na samą górę, jeśli użytkownik zaznaczył nowy element,
-            // żeby od razu widział go w "wybranych"
-            if (allergy.isActive()) {
-                recyclerView.scrollToPosition(0);
-            }
-        });
-        recyclerView.setAdapter(adapter);
-
-        // 2. Logika wyszukiwania (Scrollowanie do szukanej pozycji)
+        // Search logic (scroll to searched item)
         searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
             @Override
             public boolean onQueryTextSubmit(String query) {
@@ -74,11 +57,11 @@ public class AllergiesFragment extends Fragment {
 
                 String searchLower = newText.toLowerCase();
                 for (int i = 0; i < allergyList.size(); i++) {
-                    // Jeśli nazwa zawiera wpisaną frazę
+                    // If name contains the search phrase
                     if (allergyList.get(i).getDisplayName().toLowerCase().contains(searchLower)) {
-                        // Scrollujemy listę tak, aby znaleziony element znalazł się na górze ekranu
+                        // Scroll list so the found item is at the top
                         layoutManager.scrollToPositionWithOffset(i, 0);
-                        break; // Znaleźliśmy pierwszy pasujący, przerywamy pętlę
+                        break; // Found first match, stop loop
                     }
                 }
                 return true;
@@ -86,19 +69,81 @@ public class AllergiesFragment extends Fragment {
         });
     }
 
-    private void loadAndSortAllergies() {
-        allergyList = db.allergyDAO().getAllAllergies(); // Pobieramy z bazy
-        sortAllergies(); // Sortujemy
+    private void loadAllergies() {
+        AppDatabase.databaseWriteExecutor.execute(() -> {
+            // Ensure default entries exist before loading
+            ensureDefault14AllergiesExist();
+
+            allergyList = db.allergyDAO().getAllAllergies();
+            sortAllergies();
+            
+            if (isAdded()) {
+                requireActivity().runOnUiThread(() -> {
+                    if (adapter == null) {
+                        adapter = new AllergyTileAdapter(allergyList, (allergy, position) -> {
+                            // Toggle selection status
+                            allergy.setActive(!allergy.isActive());
+
+                            // Save to database in background
+                            AppDatabase.databaseWriteExecutor.execute(() -> db.allergyDAO().update(allergy));
+
+                            // Re-sort list and refresh view
+                            sortAllergies();
+                            adapter.updateList(allergyList);
+
+                            // Scroll to top if new item activated to show it in "selected" section
+                            if (allergy.isActive()) {
+                                recyclerView.scrollToPosition(0);
+                            }
+                        });
+                        recyclerView.setAdapter(adapter);
+                    } else {
+                        adapter.updateList(allergyList);
+                    }
+                });
+            }
+        });
     }
 
-    // Funkcja sortująca: Aktywne alergie lądują na samej górze, reszta alfabetycznie na dole
-    private void sortAllergies() {
-        Collections.sort(allergyList, (a1, a2) -> {
-            // 1. Najpierw sortowanie po statusie aktywności
-            if (a1.isActive() && !a2.isActive()) return -1; // a1 idzie wyżej
-            if (!a1.isActive() && a2.isActive()) return 1;  // a2 idzie wyżej
+    private void ensureDefault14AllergiesExist() {
+        List<Allergy> defaults = getDefaultAllergiesList();
+        for (Allergy def : defaults) {
+            Allergy existing = db.allergyDAO().getAllergyByOffTag(def.getOffTag());
+            if (existing == null) {
+                db.allergyDAO().insertIgnore(def);
+            }
+        }
+    }
 
-            // 2. Jeśli oba są aktywne (lub oba nieaktywne), sortujemy alfabetycznie
+    private List<Allergy> getDefaultAllergiesList() {
+        List<Allergy> list = new ArrayList<>();
+        list.add(new Allergy("Gluten i zboża", "en:gluten", false));
+        list.add(new Allergy("Mleko i laktoza", "en:milk", false));
+        list.add(new Allergy("Jaja", "en:eggs", false));
+        list.add(new Allergy("Orzechy drzewne", "en:nuts", false));
+        list.add(new Allergy("Orzeszki ziemne (fistaszki)", "en:peanuts", false));
+        list.add(new Allergy("Soja", "en:soya", false));
+        list.add(new Allergy("Ryby", "en:fish", false));
+        list.add(new Allergy("Skorupiaki", "en:crustaceans", false));
+        list.add(new Allergy("Mięczaki", "en:molluscs", false));
+        list.add(new Allergy("Seler", "en:celery", false));
+        list.add(new Allergy("Gorczyca / Musztarda", "en:mustard", false));
+        list.add(new Allergy("Sezam", "en:sesame-seeds", false));
+        list.add(new Allergy("Siarczyny / Siarki", "en:sulphur-dioxide-and-sulphites", false));
+        list.add(new Allergy("Łubin", "en:lupin", false));
+        return list;
+    }
+
+    // Sorting: Active allergies at the top, rest alphabetically
+    private void sortAllergies() {
+        if (allergyList == null) return;
+        
+        allergyList.sort((a1, a2) -> {
+            // 1. Sort by activity status
+            if (a1.isActive() && !a2.isActive()) return -1;
+            if (!a1.isActive() && a2.isActive()) return 1;
+
+            // 2. Alphabetical sort for same activity status
             return a1.getDisplayName().compareToIgnoreCase(a2.getDisplayName());
         });
     }
