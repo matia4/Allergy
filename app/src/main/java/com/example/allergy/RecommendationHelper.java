@@ -306,29 +306,6 @@ public class RecommendationHelper {
             case "en:lupin":
                 return textLower.contains("łubin") || textLower.contains("lupin");
 
-            case "custom:tomatoes":
-                return textLower.contains("pomidor") || textLower.contains("likopen") || textLower.contains("tomato");
-
-            case "custom:cocoa":
-                return textLower.contains("kakao") || textLower.contains("kakaow") || textLower.contains("cocoa");
-
-            case "custom:citrus":
-                return textLower.contains("cytryn") || textLower.contains("pomarańcz") ||
-                        textLower.contains("mandaryn") || textLower.contains("limonk") || textLower.contains("citrus");
-
-            case "custom:corn":
-                return textLower.contains("kukurydz") || textLower.contains("corn");
-
-            case "custom:yeast":
-                return textLower.contains("drożdż") || textLower.contains("yeast");
-
-            case "custom:carmine":
-                return textLower.contains("e120") || textLower.contains("koszenil") ||
-                        textLower.contains("karmin") || textLower.contains("cochineal");
-
-            case "custom:palmoil":
-                return textLower.contains("palmow") || textLower.contains("palm oil");
-
             default:
                 if (allergy.getDisplayName() != null) {
                     return textLower.contains(allergy.getDisplayName().toLowerCase());

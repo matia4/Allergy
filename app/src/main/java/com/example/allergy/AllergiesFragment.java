@@ -131,14 +131,6 @@ public class AllergiesFragment extends Fragment {
         list.add(new Allergy(getString(R.string.allergy_sesame), "en:sesame-seeds", false));
         list.add(new Allergy(getString(R.string.allergy_sulphites), "en:sulphur-dioxide-and-sulphites", false));
         list.add(new Allergy(getString(R.string.allergy_lupin), "en:lupin", false));
-        list.add(new Allergy("custom:tomatoes", "Pomidory", false));
-        list.add(new Allergy("custom:cocoa", "Kakao / Czekolada", false));
-        list.add(new Allergy("custom:citrus", "Owoce cytrusowe", false));
-        list.add(new Allergy("custom:corn", "Kukurydza", false));
-        list.add(new Allergy("custom:yeast", "Drożdże", false));
-        list.add(new Allergy("custom:honey", "Miód", false));
-        list.add(new Allergy("custom:carmine", "Barwnik E120 (Karmin)", false));
-        list.add(new Allergy("custom:palmoil", "Olej palmowy", false));
         return list;
     }
 
