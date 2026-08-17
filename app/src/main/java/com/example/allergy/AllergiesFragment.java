@@ -117,20 +117,28 @@ public class AllergiesFragment extends Fragment {
 
     private List<Allergy> getDefaultAllergiesList() {
         List<Allergy> list = new ArrayList<>();
-        list.add(new Allergy("Gluten i zboża", "en:gluten", false));
-        list.add(new Allergy("Mleko i laktoza", "en:milk", false));
-        list.add(new Allergy("Jaja", "en:eggs", false));
-        list.add(new Allergy("Orzechy drzewne", "en:nuts", false));
-        list.add(new Allergy("Orzeszki ziemne (fistaszki)", "en:peanuts", false));
-        list.add(new Allergy("Soja", "en:soya", false));
-        list.add(new Allergy("Ryby", "en:fish", false));
-        list.add(new Allergy("Skorupiaki", "en:crustaceans", false));
-        list.add(new Allergy("Mięczaki", "en:molluscs", false));
-        list.add(new Allergy("Seler", "en:celery", false));
-        list.add(new Allergy("Gorczyca / Musztarda", "en:mustard", false));
-        list.add(new Allergy("Sezam", "en:sesame-seeds", false));
-        list.add(new Allergy("Siarczyny / Siarki", "en:sulphur-dioxide-and-sulphites", false));
-        list.add(new Allergy("Łubin", "en:lupin", false));
+        list.add(new Allergy(getString(R.string.allergy_gluten), "en:gluten", false));
+        list.add(new Allergy(getString(R.string.allergy_milk), "en:milk", false));
+        list.add(new Allergy(getString(R.string.allergy_eggs), "en:eggs", false));
+        list.add(new Allergy(getString(R.string.allergy_nuts), "en:nuts", false));
+        list.add(new Allergy(getString(R.string.allergy_peanuts), "en:peanuts", false));
+        list.add(new Allergy(getString(R.string.allergy_soya), "en:soya", false));
+        list.add(new Allergy(getString(R.string.allergy_fish), "en:fish", false));
+        list.add(new Allergy(getString(R.string.allergy_crustaceans), "en:crustaceans", false));
+        list.add(new Allergy(getString(R.string.allergy_molluscs), "en:molluscs", false));
+        list.add(new Allergy(getString(R.string.allergy_celery), "en:celery", false));
+        list.add(new Allergy(getString(R.string.allergy_mustard), "en:mustard", false));
+        list.add(new Allergy(getString(R.string.allergy_sesame), "en:sesame-seeds", false));
+        list.add(new Allergy(getString(R.string.allergy_sulphites), "en:sulphur-dioxide-and-sulphites", false));
+        list.add(new Allergy(getString(R.string.allergy_lupin), "en:lupin", false));
+        list.add(new Allergy("custom:tomatoes", "Pomidory", false));
+        list.add(new Allergy("custom:cocoa", "Kakao / Czekolada", false));
+        list.add(new Allergy("custom:citrus", "Owoce cytrusowe", false));
+        list.add(new Allergy("custom:corn", "Kukurydza", false));
+        list.add(new Allergy("custom:yeast", "Drożdże", false));
+        list.add(new Allergy("custom:honey", "Miód", false));
+        list.add(new Allergy("custom:carmine", "Barwnik E120 (Karmin)", false));
+        list.add(new Allergy("custom:palmoil", "Olej palmowy", false));
         return list;
     }
 

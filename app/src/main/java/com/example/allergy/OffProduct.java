@@ -33,8 +33,8 @@ public class OffProduct {
 
     // Getters
     public String getCode() { return code; }
-    public String getProductName() { return productName != null ? productName : "Unknown product"; }
-    public String getIngredientsText() { return ingredientsText != null ? ingredientsText : "Composition data missing"; }
+    public String getProductName() { return productName; }
+    public String getIngredientsText() { return ingredientsText; }
     public List<String> getAllergensTags() { return allergensTags; }
     public List<String> getCategoriesTags() { return categoriesTags; }
     public String getImageUrl() { return imageUrl; }

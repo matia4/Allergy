@@ -37,4 +37,22 @@
     <string name="product_deleted">Product deleted</string>
     <string name="undo">Undo</string>
     <string name="allergy_name">Allergy Name</string>
+    <string name="ok">OK</string>
+    <string name="unknown_product">Unknown product</string>
+    <string name="composition_data_missing">Composition data missing</string>
+    <string name="unnamed_product">Unnamed product</string>
+    <string name="allergy_gluten">Gluten and grains</string>
+    <string name="allergy_milk">Milk and lactose</string>
+    <string name="allergy_eggs">Eggs</string>
+    <string name="allergy_nuts">Tree nuts</string>
+    <string name="allergy_peanuts">Peanuts</string>
+    <string name="allergy_soya">Soya</string>
+    <string name="allergy_fish">Fish</string>
+    <string name="allergy_crustaceans">Crustaceans</string>
+    <string name="allergy_molluscs">Molluscs</string>
+    <string name="allergy_celery">Celery</string>
+    <string name="allergy_mustard">Mustard</string>
+    <string name="allergy_sesame">Sesame</string>
+    <string name="allergy_sulphites">Sulphites / Sulphur</string>
+    <string name="allergy_lupin">Lupin</string>
 </resources>

@@ -279,7 +279,8 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
         if (!isAdded() || getContext() == null) return;
 
         androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(requireContext());
-        builder.setTitle(title);
+        String displayTitle = (title != null && !title.trim().isEmpty()) ? title : getString(R.string.unknown_product);
+        builder.setTitle(displayTitle);
 
         StringBuilder msg = new StringBuilder();
 
@@ -316,10 +317,11 @@ public class ScannerFragment extends Fragment implements AnalyzeBarcode.ScannerL
             builder.setIcon(android.R.drawable.ic_dialog_info);
         }
 
-        msg.append("\n\n").append(getString(R.string.ingredients_title)).append(ingredients);
+        String displayIngredients = (ingredients != null && !ingredients.trim().isEmpty()) ? ingredients : getString(R.string.composition_data_missing);
+        msg.append("\n\n").append(getString(R.string.ingredients_title)).append(displayIngredients);
         builder.setMessage(msg.toString());
 
-        builder.setPositiveButton("OK", (dialog, which) -> isScanning = true);
+        builder.setPositiveButton(R.string.ok, (dialog, which) -> isScanning = true);
         builder.setCancelable(false);
         builder.show();
     }

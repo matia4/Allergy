@@ -39,7 +39,11 @@ public class RecommendationAdapter extends RecyclerView.Adapter<RecommendationAd
         OffProduct product = productList.get(position);
 
         // Display product name or default fallback
-        holder.tvName.setText(product.getProductName() != null ? product.getProductName() : "Unnamed product");
+        String productName = product.getProductName();
+        if (productName == null || productName.trim().isEmpty()) {
+            productName = holder.itemView.getContext().getString(R.string.unnamed_product);
+        }
+        holder.tvName.setText(productName);
 
         // Load product image using Glide
         if (product.getImageUrl() != null && !product.getImageUrl().isEmpty()) {

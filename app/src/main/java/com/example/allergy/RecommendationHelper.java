@@ -64,36 +64,44 @@ public class RecommendationHelper {
             
             ((android.app.Activity)context).runOnUiThread(() -> 
                 performSearchFallback(context, currentBarcode, categoriesTags, categoriesTags.size() - 1,
-                        activeAllergies, pbLoading, tvNoRecs, tvCurrentCategory, rvRecs)
+                        activeAllergies, pbLoading, tvNoRecs, tvCurrentCategory, rvRecs, new ArrayList<>())
             );
         });
     }
 
     /**
      * Recursive search function with fallback.
-     * Starts from the most specific category and moves to broader ones if no safe alternatives are found.
+     * Starts from the most specific category and moves to broader ones until at least 3 safe alternatives are found.
      * categoryIndex: index in categoriesTags list currently being checked.
+     * accumulatedProducts: list of safe products found in previous steps.
      */
     private static void performSearchFallback(Context context, String barcode, List<String> categoriesTags,
                                               int categoryIndex, List<Allergy> activeAllergies,
                                               ProgressBar pbLoading, TextView tvNoRecs,
-                                              TextView tvCurrentCategory, RecyclerView rvRecs) {
+                                              TextView tvCurrentCategory, RecyclerView rvRecs,
+                                              List<OffProduct> accumulatedProducts) {
 
-        // Base case: all categories exhausted
-        if (categoryIndex < 0) {
+        final int MIN_REQUIRED_PRODUCTS = 4;
+
+        // Base case: all categories exhausted OR we reached the threshold
+        if (categoryIndex < 0 || accumulatedProducts.size() >= MIN_REQUIRED_PRODUCTS) {
             pbLoading.setVisibility(View.GONE);
-            tvNoRecs.setText(R.string.no_alternatives_found);
-            tvNoRecs.setVisibility(View.VISIBLE);
-            tvCurrentCategory.setVisibility(View.GONE);
+            if (accumulatedProducts.isEmpty()) {
+                tvNoRecs.setText(R.string.no_alternatives_found);
+                tvNoRecs.setVisibility(View.VISIBLE);
+                tvCurrentCategory.setVisibility(View.GONE);
+            } else {
+                displayRecommendations(context, rvRecs, accumulatedProducts);
+            }
             return;
         }
 
         String targetTag = categoriesTags.get(categoryIndex);
-        Log.d(TAG, "Searching for alternatives in category: " + targetTag);
+        Log.d(TAG, "Searching for alternatives in category: " + targetTag + " (Found so far: " + accumulatedProducts.size() + ")");
 
         // UI update for current search status
         String categoryReadable = targetTag.replace("en:", "").replace("-", " ");
-        tvCurrentCategory.setText(context.getString(R.string.category_label, categoryReadable, categoryIndex + 1, categoriesTags.size()));
+        tvCurrentCategory.setText(context.getString(R.string.category_label, categoryReadable, categoriesTags.size() - categoryIndex, categoriesTags.size()));
         tvCurrentCategory.setVisibility(View.VISIBLE);
         pbLoading.setVisibility(View.VISIBLE);
         rvRecs.setVisibility(View.GONE);
@@ -110,39 +118,68 @@ public class RecommendationHelper {
                             // Filter results to ensure they are safe for the user's active allergies
                             List<OffProduct> safeProducts = filterSafeProducts(rawProducts, barcode, activeAllergies);
 
-                            if (safeProducts.isEmpty()) {
-                                // Fallback: try search in the next broader category
-                                Log.d(TAG, "No safe products in " + targetTag + ". Trying broader category.");
+                            // Merge unique products into accumulation list
+                            for (OffProduct newP : safeProducts) {
+                                boolean exists = false;
+                                for (OffProduct accP : accumulatedProducts) {
+                                    if (Objects.equals(accP.getCode(), newP.getCode())) {
+                                        exists = true;
+                                        break;
+                                    }
+                                }
+                                if (!exists) {
+                                    accumulatedProducts.add(newP);
+                                }
+                            }
+
+                            if (accumulatedProducts.size() < MIN_REQUIRED_PRODUCTS && categoryIndex > 0) {
+                                // Threshold not met: try search in the next broader category
+                                Log.d(TAG, "Threshold not met (" + accumulatedProducts.size() + "/" + MIN_REQUIRED_PRODUCTS + "). Trying broader category.");
                                 performSearchFallback(context, barcode, categoriesTags, categoryIndex - 1,
-                                        activeAllergies, pbLoading, tvNoRecs, tvCurrentCategory, rvRecs);
+                                        activeAllergies, pbLoading, tvNoRecs, tvCurrentCategory, rvRecs, accumulatedProducts);
                             } else {
-                                // Display safe alternatives found
+                                // Threshold met or no more categories
                                 pbLoading.setVisibility(View.GONE);
-                                rvRecs.setVisibility(View.VISIBLE);
-                                rvRecs.setAdapter(new RecommendationAdapter(safeProducts, selectedProduct ->
-                                        new AlertDialog.Builder(context)
-                                                .setTitle(selectedProduct.getProductName())
-                                                .setMessage(context.getString(R.string.ingredients_full_title,
-                                                        selectedProduct.getIngredientsText() != null ? selectedProduct.getIngredientsText() : context.getString(R.string.unknown_composition)))
-                                                .setPositiveButton(R.string.close, null)
-                                                .show()
-                                ));
+                                if (accumulatedProducts.isEmpty()) {
+                                    tvNoRecs.setText(R.string.no_alternatives_found);
+                                    tvNoRecs.setVisibility(View.VISIBLE);
+                                } else {
+                                    displayRecommendations(context, rvRecs, accumulatedProducts);
+                                }
                             }
                         } else {
                             // Fallback on non-successful API response
                             performSearchFallback(context, barcode, categoriesTags, categoryIndex - 1,
-                                    activeAllergies, pbLoading, tvNoRecs, tvCurrentCategory, rvRecs);
+                                    activeAllergies, pbLoading, tvNoRecs, tvCurrentCategory, rvRecs, accumulatedProducts);
                         }
                     }
 
                     @Override
                     public void onFailure(@NonNull Call<OffSearch> call, @NonNull Throwable t) {
-                        pbLoading.setVisibility(View.GONE);
-                        tvNoRecs.setText(R.string.error_network);
-                        tvNoRecs.setVisibility(View.VISIBLE);
+                        // On failure, if we have some results, show them. Otherwise show error.
+                        if (!accumulatedProducts.isEmpty()) {
+                            pbLoading.setVisibility(View.GONE);
+                            displayRecommendations(context, rvRecs, accumulatedProducts);
+                        } else {
+                            pbLoading.setVisibility(View.GONE);
+                            tvNoRecs.setText(R.string.error_network);
+                            tvNoRecs.setVisibility(View.VISIBLE);
+                        }
                         Log.e(TAG, "Network error in search fallback: " + t.getMessage());
                     }
                 });
+    }
+
+    private static void displayRecommendations(Context context, RecyclerView rvRecs, List<OffProduct> products) {
+        rvRecs.setVisibility(View.VISIBLE);
+        rvRecs.setAdapter(new RecommendationAdapter(products, selectedProduct ->
+                new AlertDialog.Builder(context)
+                        .setTitle(selectedProduct.getProductName())
+                        .setMessage(context.getString(R.string.ingredients_full_title,
+                                selectedProduct.getIngredientsText() != null ? selectedProduct.getIngredientsText() : context.getString(R.string.unknown_composition)))
+                        .setPositiveButton(R.string.close, null)
+                        .show()
+        ));
     }
 
     /**
@@ -268,6 +305,29 @@ public class RecommendationHelper {
 
             case "en:lupin":
                 return textLower.contains("łubin") || textLower.contains("lupin");
+
+            case "custom:tomatoes":
+                return textLower.contains("pomidor") || textLower.contains("likopen") || textLower.contains("tomato");
+
+            case "custom:cocoa":
+                return textLower.contains("kakao") || textLower.contains("kakaow") || textLower.contains("cocoa");
+
+            case "custom:citrus":
+                return textLower.contains("cytryn") || textLower.contains("pomarańcz") ||
+                        textLower.contains("mandaryn") || textLower.contains("limonk") || textLower.contains("citrus");
+
+            case "custom:corn":
+                return textLower.contains("kukurydz") || textLower.contains("corn");
+
+            case "custom:yeast":
+                return textLower.contains("drożdż") || textLower.contains("yeast");
+
+            case "custom:carmine":
+                return textLower.contains("e120") || textLower.contains("koszenil") ||
+                        textLower.contains("karmin") || textLower.contains("cochineal");
+
+            case "custom:palmoil":
+                return textLower.contains("palmow") || textLower.contains("palm oil");
 
             default:
                 if (allergy.getDisplayName() != null) {

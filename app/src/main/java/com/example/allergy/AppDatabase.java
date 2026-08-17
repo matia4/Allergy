@@ -10,7 +10,7 @@ import java.util.concurrent.Executors;
 /**
  * Room Database configuration for the application
  */
-@Database(entities = {Allergy.class, Product.class}, version = 5, exportSchema = false)
+@Database(entities = {Allergy.class, Product.class}, version = 5, exportSchema = true)
 public abstract class AppDatabase extends RoomDatabase{
     public abstract AllergyDAO allergyDAO();
     public abstract ProductDAO productDAO();
@@ -29,7 +29,6 @@ public abstract class AppDatabase extends RoomDatabase{
                 if (INSTANCE == null) {
                     INSTANCE = Room.databaseBuilder(context.getApplicationContext(),
                                     AppDatabase.class, "allergy_food_db")
-                            .fallbackToDestructiveMigration(true)
                             .build();
                 }
             }

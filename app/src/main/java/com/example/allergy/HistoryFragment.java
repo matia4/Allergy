@@ -14,6 +14,8 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.snackbar.Snackbar;
 
+import android.widget.ImageView;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -103,16 +105,70 @@ public class HistoryFragment extends Fragment {
                             });
                         }
 
-                        // Display ingredients details
-                        new androidx.appcompat.app.AlertDialog.Builder(context)
-                                .setTitle(product.getName())
-                                .setMessage(getString(R.string.ingredients_title) + product.getIngredients())
-                                .setPositiveButton(R.string.close, null)
-                                .show();
+                        // Display product analysis dialog instead of simple AlertDialog
+                        showProductDetailsDialog(context, product);
                     });
                     recyclerView.setAdapter(adapter);
                 });
             }
         });
+    }
+
+    /**
+     * Shows a detailed dialog for a product from history, similar to the scanner dialog.
+     */
+    private void showProductDetailsDialog(Context context, Product product) {
+        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(context);
+        String displayTitle = (product.getName() != null && !product.getName().trim().isEmpty()) ? product.getName() : getString(R.string.unknown_product);
+        builder.setTitle(displayTitle);
+
+        StringBuilder msg = new StringBuilder();
+
+        // Inflate custom dialog layout to show product image
+        View dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_product_result, null);
+        ImageView ivProduct = dialogView.findViewById(R.id.ivDialogProductImage);
+        
+        if (product.getImageUrl() != null && !product.getImageUrl().isEmpty()) {
+            com.bumptech.glide.Glide.with(this).load(product.getImageUrl()).into(ivProduct);
+        } else {
+            ivProduct.setImageResource(android.R.drawable.ic_menu_gallery);
+        }
+
+        builder.setView(dialogView);
+
+        // Check if data is old (1 year TTL)
+        long ttlDuration = 365L * 24 * 60 * 60 * 1000L;
+        if ((System.currentTimeMillis() - product.getLastUpdated()) > ttlDuration) {
+            msg.append(getString(R.string.outdated_warning));
+        }
+
+        // Show detected allergens above ingredients as requested
+        if (product.isAllergic()) {
+            msg.append(getString(R.string.detected_allergens_warning, product.getDetectedAllergens().replace(", ", "\n- ")));
+            builder.setIcon(android.R.drawable.ic_dialog_alert);
+
+            // Set up "Safe Alternative" button
+            List<String> categories = new ArrayList<>();
+            if (product.getCategoriesTagsJson() != null && !product.getCategoriesTagsJson().isEmpty()) {
+                try {
+                    java.lang.reflect.Type listType = new com.google.gson.reflect.TypeToken<List<String>>(){}.getType();
+                    categories = new com.google.gson.Gson().fromJson(product.getCategoriesTagsJson(), listType);
+                } catch (Exception ignored) {}
+            }
+            final List<String> finalCategories = categories;
+            builder.setNeutralButton(R.string.safe_alternative, (dialog, which) ->
+                    RecommendationHelper.showHierarchicalRecommendationsDialog(context, product.getBarcode(), finalCategories, null)
+            );
+        } else {
+            msg.append(getString(R.string.product_safe));
+            builder.setIcon(android.R.drawable.ic_dialog_info);
+        }
+
+        String displayIngredients = (product.getIngredients() != null && !product.getIngredients().trim().isEmpty()) ? product.getIngredients() : getString(R.string.composition_data_missing);
+        msg.append("\n\n").append(getString(R.string.ingredients_title)).append(displayIngredients);
+        builder.setMessage(msg.toString());
+
+        builder.setPositiveButton(R.string.close, null);
+        builder.show();
     }
 }
